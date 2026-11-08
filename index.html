@@ -130,6 +130,17 @@ button.chip{cursor:pointer}
 .scan .guide{position:relative;margin:auto;width:min(86vw,420px);height:min(34vw,170px);border:3px solid #fff;border-radius:12px;box-shadow:0 0 0 9999px #0006}
 .scan .bot{position:relative;display:grid;gap:10px;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(#0000,#000a);text-align:center}
 .scan .btn{background:#ffffff26;color:#fff;border-color:#ffffff55}
+.scan .btn.beam{background:var(--beam);color:var(--on-beam);border-color:transparent}
+.scan .btn[disabled]{opacity:.5}
+.scan .bot{max-height:62vh;overflow:auto;background:linear-gradient(#0000,#000c 18%)}
+.sstep{margin:0;font:700 20px/1.25 var(--font-body)}
+.sstep b{display:inline-block;min-width:30px;height:30px;line-height:30px;border-radius:50%;background:var(--beam);color:var(--on-beam);margin-right:8px;font-size:17px}
+.blist{list-style:none;margin:0;padding:0;display:grid;gap:6px;text-align:left}
+.blist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;background:#ffffff1f;border-radius:10px;padding:8px 10px}
+.blist .bc{font:600 17px var(--font-mono);letter-spacing:.06em}
+.blist .bd{font-size:13px;opacity:.9;overflow-wrap:anywhere}
+.blist .bw{font-size:12px;color:#FFD58A}
+.blist button{min-width:40px;min-height:40px;border-radius:8px;border:1px solid #ffffff55;background:none;color:#fff;font-size:18px}
 @media (prefers-reduced-motion: no-preference){ .btn,.cell{transition:background-color .12s,border-color .12s} }
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
@@ -414,7 +425,10 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
   </div>
   <div class="guide"></div>
   <div class="bot">
+    <p class="sstep" id="scanStep" hidden></p>
     <p id="scanMsg" style="margin:0">Aponte para o código de barras</p>
+    <ul class="blist" id="batchList" hidden></ul>
+    <button class="btn beam big" type="button" data-act="batch-ok" id="batchOk" hidden>Confirmar</button>
     <button class="btn" type="button" data-act="scan-photo">Tirar foto ou escolher imagem</button>
   </div>
 </div>
@@ -826,7 +840,7 @@ var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelect
 /* ---- estrutura do estoque ----
    Cada parede é uma grade: letras no topo (estantes), números na lateral (prateleiras).
    Corredores: 12 estantes (A-L) x 6 prateleiras. Paredão: 3 prateleiras x 6 = 18 letras (A-R) x 13 números. */
-var APP_VERSION='11';
+var APP_VERSION='12';
 var LET='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 var DEFAULT_WALLS=[
   {id:'C1-B',name:'Corredor 1 · Lado B',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
@@ -1005,6 +1019,7 @@ function renderCur(){
   else if(!cur.letter) lab=wallName(cur.wall)+'. Falta a letra (etiqueta do topo).';
   else lab=wallName(cur.wall)+'. Falta o número (etiqueta da lateral).';
   $('#posLabel').textContent=lab; $('#scanSub').textContent=p?'Posição ok. Leia os produtos, um por vez.':lab;
+  if(!$('#scan').hidden) renderBatch();
   $('#prodCard').hidden=!pendingProd;
   if(pendingProd){$('#prodDesc').textContent=pendingProd.code+' · '+(pendingProd.desc||S.cat[pendingProd.code]||'(sem descrição)');$('#prodPut').disabled=!p}
 
@@ -1598,6 +1613,7 @@ function applyParsed(p){
   pendingEan=null; $('#dup').hidden=true;
   renderCur(); renderPicker();
   var pos=curPos();
+  if(!$('#scan').hidden){$('#scanMsg').textContent=pos?'Posição '+pos:'Etiqueta lida.';return}
   toast(pos?'Posição '+pos:(!cur.letter?wallName(cur.wall)+'. Falta a letra.':wallName(cur.wall)+', letra '+cur.letter+'. Falta o número.'));
 }
 function handleCode(raw){
@@ -1662,6 +1678,66 @@ function commit(ean){
   toast('Guardado em '+pos);
 }
 
+
+/* ---- leitura em lote: posição + vários produtos, depois confirmar ---- */
+var batch=[];
+function renderBatch(){
+  var p=curPos(),one=cur.wall&&WALL[cur.wall]&&WALL[cur.wall].one,st=$('#scanStep');
+  if(scanMode!=='add'){st.hidden=true;$('#batchList').hidden=true;$('#batchOk').hidden=true;return}
+  st.hidden=false;
+  if(!p) st.innerHTML=cur.wall?'<b>1</b>Falta '+(!cur.letter?'a letra':'o número')+' da posição':(batch.length?'<b>1</b>Agora leia a etiqueta da posição':'<b>1</b>Leia a etiqueta da posição');
+  else st.innerHTML=batch.length?'<b>2</b>Leia mais produtos ou confirme':'<b>2</b>Leia os produtos, um por vez';
+  $('#batchList').hidden=!batch.length;
+  $('#batchList').innerHTML=batch.map(function(b,i){
+    var w=b.others.length?'<div class="bw">Já está em '+esc(b.others.slice(0,3).join(', '))+(b.others.length>3?'…':'')+'</div>':'';
+    return '<li><div><div class="bc">'+esc(b.code)+'</div><div class="bd">'+esc(b.desc||'sem descrição')+'</div>'+w+'</div><button type="button" data-act="batch-rm" data-i="'+i+'" aria-label="Tirar">×</button></li>';
+  }).join('');
+  var ok=$('#batchOk');
+  ok.hidden=!batch.length;
+  ok.disabled=!p;
+  ok.textContent=p?('Confirmar '+batch.length+(batch.length===1?' produto':' produtos')+' em '+p+(one&&batch.length?' (substitui)':'')):'Leia a posição para confirmar';
+}
+function addScan(raw){
+  var t=String(raw||'').trim().toUpperCase().replace(/\s+/g,'');
+  var p=parseCode(t);
+  if(p){applyParsed(p);renderBatch();return}
+  if(/^\d{8,14}$/.test(t)){
+    var ean=t.length===12?'0'+t:t,code=codeFromEan(ean);
+    if(batch.some(function(b){return b.ean===ean})){$('#scanMsg').textContent='Produto '+code+' já está na lista.';return}
+    var others=[];S.items.forEach(function(i){if((i.ean===ean||i.code===code)&&others.indexOf(i.pos)<0) others.push(i.pos)});
+    var b={ean:ean,code:code,desc:descFor(ean).desc,others:others};
+    if(cur.wall&&WALL[cur.wall].one) batch=[b]; else batch.push(b);
+    $('#scanMsg').textContent='Lido: '+code+(b.desc?' · '+b.desc:'');
+    renderBatch();
+    return;
+  }
+  $('#scanMsg').textContent='Código não reconhecido: leia uma etiqueta de posição ou o código de barras do produto.';
+}
+function commitBatch(){
+  var pos=curPos(); if(!pos||!batch.length) return;
+  var one=WALL[cur.wall].one,n=0,last=null;
+  if(one) batch=batch.slice(-1);
+  batch.forEach(function(b){
+    var here=byPos.get(pos)||[];
+    if(here.some(function(i){return i.ean===b.ean||i.code===b.code})) return;
+    var it=mkItem(pos,b.ean,b.code,b.desc,Date.now());
+    S.items=S.items.filter(function(x){return x.id!==it.id&&!(one&&x.pos===pos)});
+    S.items.push(it); reindex(); n++; last=it;
+  });
+  batch=[]; touch(); closeScanner(); renderAll();
+  if(last){
+    lastId=last.id;
+    $('#lastTitle').textContent=n>1?('Guardados '+n+' produtos em '+pos):('Guardado em '+pos);
+    $('#lastCode').textContent=last.code;
+    $('#lastEan').innerHTML=esc(last.ean.slice(0,-6))+'<b>'+esc(last.code)+'</b><i>'+esc(last.ean.slice(-1))+'</i>';
+    $('#lastWarn').hidden=eanOk(last.ean);
+    $('#lastDesc').value=last.desc;
+    var src=$('#lastSrc');src.className='';src.textContent=last.desc?(n>1?'Descrição do último produto':'Descrição'):'Produto fora do catálogo. Escreva a descrição.';
+    $('#last').hidden=false;
+  }
+  toast(n?(n+(n===1?' produto guardado em ':' produtos guardados em ')+pos):'Esses produtos já estavam nesta posição.');
+}
+
 /* ---- câmera e foto ---- */
 var sc={stream:null,run:false,det:null,last:'',lastT:0,cv:null};
 function gray(cv){
@@ -1676,7 +1752,7 @@ function onScanned(text){
   sc.last=text;sc.lastT=now;
   if(navigator.vibrate) try{navigator.vibrate(60)}catch(e){}
   $('#scanMsg').textContent='Lido: '+text;
-  if(scanMode==='add') handleCode(text);
+  if(scanMode==='add') addScan(text);
   else if(scanMode==='find'){
     var t=String(text).trim().toUpperCase().replace(/\s+/g,'');
     $('#q').value=parseCode(t)?t:t.replace(/\D/g,'');
@@ -1694,13 +1770,14 @@ function onScanned(text){
 }
 function liveCamOk(){return !!(window.isSecureContext&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)}
 function openCam(){
-  if(liveCamOk()){startScanner();return}
-  toast('Câmera ao vivo indisponível aqui: tire uma foto do código ou escolha uma imagem.');
-  $('#photo').click();
+  if(scanMode==='add'){batch=[];cur={wall:null,letter:null,num:null};pendingEan=null;$('#dup').hidden=true;renderPicker()}
+  startScanner();
+  if(!liveCamOk()){toast('Câmera ao vivo indisponível aqui: tire uma foto do código ou escolha uma imagem.');$('#photo').click()}
 }
 async function startScanner(){
-  $('#scan').hidden=false;renderCur();
+  $('#scan').hidden=false;renderCur();renderBatch();
   $('#scanMsg').textContent='Aponte para o código de barras';
+  if(!liveCamOk()){$('#scanMsg').textContent='Use “Tirar foto ou escolher imagem”.';return}
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('#scanMsg').textContent='Câmera ao vivo indisponível aqui. Use “Tirar foto ou escolher imagem”.';return}
   try{
     sc.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
@@ -1878,7 +1955,12 @@ document.addEventListener('click',function(e){
     case 'scan-add': scanMode='add'; openCam(); break;
     case 'scan-find': scanMode='find'; openCam(); break;
     case 'scan-photo': $('#photo').click(); break;
-    case 'scan-close': closeScanner(); break;
+    case 'scan-close':
+      if(scanMode==='add'&&batch.length) armed(t,'Descartar '+batch.length+'?',function(){batch=[];closeScanner()});
+      else closeScanner();
+      break;
+    case 'batch-ok': commitBatch(); break;
+    case 'batch-rm': batch.splice(+t.dataset.i,1); renderBatch(); break;
     case 'use-code': {var inp=$('#codeInput'); handleCode(inp.value); inp.value=''; break}
     case 'wall':
       if(cur.wall!==t.dataset.v){cur.letter=null;cur.num=null}
@@ -2020,7 +2102,7 @@ applyMode();
 if(!isEdit()) go('find');
 renderAll();
 if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist()}catch(e){}}
-window.__estoque={curConf:curConf,mergeReads:mergeReads,applyRev:applyRev,revFromText:revFromText,getRev:function(){return rev},S:S,DB:DB,handleCode:handleCode,parseFolhaText:parseFolhaText,rowsToData:rowsToData,labelsHtml:labelsHtml};
+window.__estoque={addScan:addScan,getBatch:function(){return batch},curConf:curConf,mergeReads:mergeReads,applyRev:applyRev,revFromText:revFromText,getRev:function(){return rev},S:S,DB:DB,handleCode:handleCode,parseFolhaText:parseFolhaText,rowsToData:rowsToData,labelsHtml:labelsHtml};
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
   try{
     var hadCtl=!!navigator.serviceWorker.controller,reloaded=false;
