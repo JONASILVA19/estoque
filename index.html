@@ -164,6 +164,12 @@ button.chip{cursor:pointer}
 details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex;align-items:center;color:var(--muted)}
 #storeActs{grid-template-columns:1fr 1fr}
 #storeActs #storeNewBtn{grid-column:1/-1}
+
+.rev{gap:6px}
+.revrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr) auto;gap:8px;align-items:center}
+.revrow .in{min-height:44px}
+.in.warn{border-color:var(--beam);box-shadow:0 0 0 1px var(--beam) inset}
+.revx{min-height:44px;min-width:44px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--danger);font-weight:700;font-size:18px}
 </style>
 </head>
 <body>
@@ -272,6 +278,10 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
         <button type="button" data-act="folha-mode" data-v="conf">Conferência</button>
       </div>
       <div class="card" id="folhaAdd">
+        <button class="btn beam big" type="button" data-act="sheet-photo">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg>
+          <span>Ler folha pela foto</span>
+        </button>
         <div id="folhaRow" class="stack">
           <label class="field"><span class="sr">Código do item</span>
             <input class="in mono code" id="folhaIn" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="00000">
@@ -288,6 +298,16 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
             <button class="btn" type="button" data-act="folha-paste">Adicionar à lista</button>
           </div>
         </details>
+      </div>
+      <div class="card" id="revCard" hidden>
+        <h2 class="lab">Itens lidos da folha</h2>
+        <p class="hint" id="revMsg"></p>
+        <p class="notice" id="revTot" hidden></p>
+        <ul class="list" id="revList"></ul>
+        <div class="row2e" id="revBtns" hidden>
+          <button class="btn beam" type="button" data-act="rev-ok" id="revOk">Adicionar</button>
+          <button class="btn" type="button" data-act="rev-cancel">Cancelar</button>
+        </div>
       </div>
       <div class="card" id="folhaSum" hidden>
         <div class="sumline" id="folhaLine"></div>
@@ -407,6 +427,7 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <input type="file" id="photo" accept="image/*" capture="environment" hidden>
+<input type="file" id="sheetFile" accept="image/*" hidden>
 <input type="file" id="catFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
 <input type="file" id="planFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
 
@@ -1050,21 +1071,213 @@ function addFolha(code,qty,desc){
   S.folha.push({code:code,qty:qty||0,desc:desc||''});
   return true;
 }
-/* Entende linhas coladas da folha: "LN-6-39 50010 2 DESCRIÇÃO" ou só códigos soltos. */
-function parseFolhaText(text){
-  var out=[],lines=String(text||'').split(/\r?\n/);
-  lines.forEach(function(line){
-    var re=/(?<![A-Za-z0-9])[Ee]?(\d{5})(?![0-9])/g,ms=[],m;
-    while((m=re.exec(line))) ms.push({code:m[1],end:re.lastIndex});
-    if(!ms.length) return;
-    if(ms.length===1){
-      var rest=line.slice(ms[0].end).trim(),qty=0,mm=/^(\d{1,3})\s+(\S.*)$/.exec(rest);
-      if(mm){qty=+mm[1];rest=mm[2].trim()} else if(/^\d{1,3}$/.test(rest)){qty=+rest;rest=''}
-      out.push({code:ms[0].code,qty:qty,desc:rest.replace(/\s+/g,' ')});
-    } else ms.forEach(function(x){out.push({code:x.code,qty:0,desc:''})});
-  });
-  return out;
+/* Lê o texto da folha (foto via OCR, Google Lens ou colado).
+   Aceita uma linha por item ("LN-6-39 50010 2 DESCRIÇÃO", inclusive duas colunas na mesma linha)
+   ou uma célula por linha (todos os códigos, depois quantidades, depois descrições). */
+var ST_RE=/(^|[\s|\[\](])[A-Za-z0-9]{1,3}\s?[-.]?\s?\d\s?[-.]\s?\d{2}(?=$|[\s|\]\),.])/g;
+var HDR_RE=/^(esta[cç][aã]o|item|itens|qtde|qtd|quantidade|descri[cç][aã]o|total|peso|pedido|romaneio|volume|tipo|data)\b/i;
+function cleanDesc(x){
+  x=String(x||'').replace(ST_RE,' ').replace(/[|\[\]{}()_=~“”"'`´^*<>]/g,' ').replace(/\s+/g,' ').trim();
+  var w=x?x.split(' '):[];
+  while(w.length&&(/^[^A-Za-zÀ-ú]+$/.test(w[0])||(w[0].length<=2&&/[a-z]/.test(w[0])))) w.shift();
+  while(w.length&&/^[^A-Za-zÀ-ú]+$/.test(w[w.length-1])) w.pop();
+  return w.join(' ').toUpperCase().replace(/[,.;:!]+$/,'');
 }
+function parseFolhaText(text){
+  var t=String(text||'').replace(/\r/g,''),out=[],m,i;
+  var tm=/TOTAL\s*(?:DE\s*)?ITENS\s*[:.]?\s*(\d{1,4})/i.exec(t);
+  var flat=t.split('\n').join(' ¶ ');
+  var re=/(?<![0-9])[Ee]?(\d{5})(?![0-9])/g,ms=[];
+  while((m=re.exec(flat))) ms.push({code:m[1],s:m.index,e:re.lastIndex});
+  if(!ms.length){out.total=tm?+tm[1]:null;return out}
+  var letterGap=0;
+  for(i=0;i+1<ms.length;i++) if(/[A-Za-zÀ-ú]{2}/.test(flat.slice(ms[i].e,ms[i+1].s))) letterGap++;
+  if(ms.length>=2&&letterGap===0){
+    var parts=flat.slice(ms[ms.length-1].e).split('¶').map(function(x){return x.trim()}).filter(Boolean);
+    var nums=[],descs=[];
+    parts.forEach(function(x){
+      if(/^\d{1,3}$/.test(x)){if(!descs.length&&nums.length<ms.length) nums.push(+x)}
+      else if(/[A-Za-zÀ-ú]{3}/.test(x)&&!HDR_RE.test(x)&&cleanDesc(x).length>=3){if(descs.length<ms.length) descs.push(cleanDesc(x))}
+    });
+    ms.forEach(function(c,k){out.push({code:c.code,qty:nums.length===ms.length?nums[k]:0,desc:descs.length===ms.length?descs[k]:''})});
+  } else {
+    ms.forEach(function(c,k){
+      var seg=flat.slice(c.e,k+1<ms.length?ms[k+1].s:flat.length);
+      var ps=seg.split('¶'),qty=0,desc='',got=false;
+      for(var j=0;j<ps.length&&j<4;j++){
+        var x=ps[j];
+        if(!x.trim()) continue;
+        if(!got){
+          var q=/^[\s|\[\]()!:;.,'"_\-~]*(\d{1,3})(?![0-9])/.exec(x);
+          got=true;
+          if(q){qty=+q[1];x=x.slice(q[0].length)}
+        }
+        if(HDR_RE.test(x.trim())) break;
+        var d=cleanDesc(x);
+        if(d.replace(/[^A-ZÀ-Ú]/g,'').length>=3){desc=d;break}
+      }
+      out.push({code:c.code,qty:qty,desc:desc});
+    });
+  }
+  var seen={},res=[];
+  out.forEach(function(x){if(seen[x.code]){if(x.qty) seen[x.code].qty+=x.qty;if(!seen[x.code].desc) seen[x.code].desc=x.desc}else{seen[x.code]=x;res.push(x)}});
+  res.forEach(function(x){if(x.qty>999) x.qty=0});
+  res.total=tm?+tm[1]:null;
+  return res;
+}
+/* ---- revisão dos itens lidos ---- */
+var rev=null;
+function revSum(){
+  if(!rev) return;
+  var n=0,sum=0,bad=0;
+  rev.items.forEach(function(x){if(/^\d{5}$/.test(x.code)){n++;sum+=(+x.qty||0)} if(!x.qty||x.qty>=10) bad++});
+  $('#revOk').textContent='Adicionar '+n+(n===1?' item':' itens');
+  var tot=$('#revTot');
+  if(rev.total){
+    tot.hidden=false;
+    tot.className='notice'+(sum===rev.total?' good':'');
+    tot.textContent=sum===rev.total?('Soma das quantidades bate com o total da folha: '+sum+'.'):('Soma das quantidades: '+sum+'. Total da folha: '+rev.total+'. Confira as quantidades destacadas.');
+  } else tot.hidden=true;
+}
+function renderRev(){
+  var c=$('#revCard');
+  if(!rev){c.hidden=true;return}
+  c.hidden=false;
+  $('#revMsg').textContent=rev.msg||'';
+  $('#revBtns').hidden=!rev.items.length;
+  $('#revList').innerHTML=rev.items.map(function(x,i){
+    var d=S.cat[x.code]||x.desc||'';
+    var warnQ=(!x.qty||x.qty>=10)?' warn':'';
+    return '<li class="res rev" data-r="'+i+'"><div class="revrow">'
+      +'<input class="in mono'+((x.out||x.fixed)?' warn':'')+'" data-rf="code" inputmode="numeric" maxlength="5" value="'+esc(x.code)+'" aria-label="Código">'
+      +'<input class="in'+warnQ+'" data-rf="qty" type="number" inputmode="numeric" min="0" value="'+(x.qty||'')+'" placeholder="Qtd" aria-label="Quantidade">'
+      +'<button type="button" class="revx" data-act="rev-rm" aria-label="Tirar">×</button></div>'
+      +'<input class="in" data-rf="desc" value="'+esc(d)+'" placeholder="(sem descrição)" aria-label="Descrição">'
+      +(x.fixed?'<p class="hint">Lido como '+esc(x.fixed)+', corrigido pelo banco de produtos.</p>':(x.out?'<p class="hint">Código fora do banco de produtos. Confira.</p>':''))
+      +'</li>';
+  }).join('');
+  revSum();
+}
+function showRev(items,msg,total){rev={items:items||[],msg:msg||'',total:total||null};renderRev()}
+function revFromText(text,src){return revFromParsed(parseFolhaText(text),src)}
+function revFromParsed(r,src){
+  if(!r.length){showRev([], src==='foto'?'Não consegui achar códigos na foto. Fotografe a folha de frente, com boa luz, ocupando a tela.':'Não achei códigos de 5 números no texto.');return 0}
+  showRev(r.map(function(x){return {code:x.code,qty:x.qty,desc:x.desc,fixed:x.fixed||'',out:!!x.out}}),'Confira e corrija se precisar. Quantidades destacadas merecem atenção.',r.total);
+  $('#revCard').scrollIntoView({block:'start'});
+  return r.length;
+}
+function applyRev(){
+  if(!rev) return;
+  var conf=fmode==='conf',n=0;
+  rev.items.forEach(function(x){
+    if(!/^\d{5}$/.test(x.code)) return;
+    var q=Math.max(0,Math.floor(+x.qty)||0); if(conf&&!q) q=1;
+    var d=String(x.desc||'').trim(); if(S.cat[x.code]&&(!x.descEdited||d===S.cat[x.code])) d='';
+    if(addFolha(x.code,q,d)) n++;
+  });
+  rev=null; renderRev(); persist(); renderFolha();
+  toast(n+(n===1?' item novo na lista.':' itens novos na lista.'));
+}
+/* ---- OCR da foto da folha (Tesseract.js, carregado só quando usado) ---- */
+var TESS_URL='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', tessP=null;
+function loadTess(){
+  if(window.Tesseract) return Promise.resolve();
+  if(tessP) return tessP;
+  tessP=new Promise(function(ok,bad){var sc2=document.createElement('script');sc2.src=TESS_URL;sc2.onload=ok;sc2.onerror=function(){tessP=null;bad(new Error('net'))};document.head.appendChild(sc2)});
+  return tessP;
+}
+async function sheetCanvas(file,target){
+  var url=URL.createObjectURL(file);
+  try{
+    var im=await new Promise(function(ok,bad){var i=new Image();i.onload=function(){ok(i)};i.onerror=function(){bad(new Error('img'))};i.src=url});
+    var sc3=Math.min(4,Math.max(0.5,(target||3200)/im.naturalWidth)),w=Math.round(im.naturalWidth*sc3),h=Math.round(im.naturalHeight*sc3);
+    var cv=newCanvas(w,h),x=cv.getContext('2d',{willReadFrequently:true});
+    x.imageSmoothingQuality='high'; x.drawImage(im,0,0,w,h);
+    var id=x.getImageData(0,0,w,h),d=id.data;
+    for(var k=0;k<d.length;k+=4){var g=(d[k]*77+d[k+1]*150+d[k+2]*29)>>8;d[k]=d[k+1]=d[k+2]=g}
+    x.putImageData(id,0,0);
+    return cv;
+  } finally {URL.revokeObjectURL(url)}
+}
+function words(d){return String(d||'').toUpperCase().split(/[^A-Z0-9À-Ú]+/).filter(function(w){return w.length>=3})}
+function simDesc(a,b){
+  var A=words(a),B=words(b); if(!A.length||!B.length) return 0;
+  var inter=A.filter(function(w){return B.indexOf(w)>=0}).length;
+  return inter/Math.min(A.length,B.length);
+}
+function bigr(x){x=String(x||'').toUpperCase().replace(/[^A-Z0-9]/g,'');var a=[];for(var i=0;i<x.length-1;i++) a.push(x.substr(i,2));return a}
+function dice(a,b){var A=bigr(a),B=bigr(b),m={},n=0;if(!A.length||!B.length) return 0;A.forEach(function(x){m[x]=(m[x]||0)+1});B.forEach(function(x){if(m[x]){m[x]--;n++}});return 2*n/(A.length+B.length)}
+function ham(a,b){var n=0;for(var i=0;i<5;i++) if(a[i]!==b[i]) n++;return n}
+/* junta as leituras, tira duplicados e corrige pelo banco de produtos quando ele existe */
+function mergeReads(passes){
+  var map={},order=[],total=null;
+  passes.forEach(function(r){
+    if(r.total&&!total) total=r.total;
+    r.forEach(function(x){
+      if(!x.desc) return;
+      var m=map[x.code];
+      if(!m){m=map[x.code]={code:x.code,votes:0,qtys:[],desc:''};order.push(m)}
+      m.votes++; if(x.qty) m.qtys.push(x.qty); if(x.desc.length>m.desc.length) m.desc=x.desc;
+    });
+  });
+  var cat=S.cat,hasCat=Object.keys(cat).length>0,catKeys=hasCat?Object.keys(cat):[];
+  order.forEach(function(m){
+    if(!hasCat||cat[m.code]) return;
+    var taken={};order.forEach(function(o){if(cat[o.code]) taken[o.code]=1});
+    var best=null,bs=0,second=0,bd=0,bh=5;
+    catKeys.forEach(function(k){
+      if(taken[k]) return;
+      var h=ham(k,m.code),ds=Math.max(dice(m.desc,cat[k]),simDesc(m.desc,cat[k])),sc=0.5*(5-h)/5+0.5*ds+(h===1?0.3:0);
+      if(sc>bs){second=bs;bs=sc;best=k;bd=ds;bh=h}else if(sc>second) second=sc;
+    });
+    if(best&&bs>=0.45&&bs-second>=0.08&&(bd>=0.3||(bh===1&&bd>=0.2))){m.fixed=m.code;m.code=best}
+  });
+  var out=[];
+  order.forEach(function(m){
+    var dup=out.filter(function(o){return o.code===m.code||(m.desc&&o.desc&&simDesc(m.desc,o.desc)>=0.6)})[0];
+    if(!dup){out.push(m);return}
+    var keepNew=(hasCat&&cat[m.code]&&!cat[dup.code])||(!(hasCat&&cat[dup.code]&&!cat[m.code])&&m.votes>dup.votes);
+    var tgt=keepNew?m:dup,oth=keepNew?dup:m;
+    tgt.qtys=tgt.qtys.concat(oth.qtys); tgt.votes+=oth.votes; if(!tgt.desc) tgt.desc=oth.desc;
+    if(keepNew) out[out.indexOf(dup)]=m;
+  });
+  var res=out.map(function(m){
+    var good=m.qtys.filter(function(q){return q>0&&q<10}),pool=good.length?good:m.qtys,cnt={},q=0,bc=0;
+    pool.forEach(function(v){cnt[v]=(cnt[v]||0)+1;if(cnt[v]>bc){bc=cnt[v];q=v}});
+    return {code:m.code,qty:q,desc:m.desc,fixed:m.fixed||'',out:hasCat&&!cat[m.code]};
+  });
+  res.total=total;
+  return res;
+}
+function scoreParse(r){
+  var sum=r.reduce(function(n,x){return n+(x.qty||0)},0),bad=r.filter(function(x){return !x.qty||x.qty>=10}).length;
+  return (r.total&&sum===r.total&&!bad?1000:0)+r.length*10-bad*3;
+}
+async function ocrSheet(file){
+  showRev([],'Preparando a foto…');$('#revCard').scrollIntoView({block:'start'});
+  try{await loadTess()}catch(e){showRev([],'Para ler a foto da folha é preciso internet. Conecte e tente de novo. (Você ainda pode digitar ou colar os itens.)');return}
+  var wk,reads=[],targets=[2800,3400];
+  try{
+    wk=await window.Tesseract.createWorker('por',1,{logger:function(m){
+      if(!rev) return;
+      if(m.status==='recognizing text') rev.msg='Lendo a folha'+(rev.pass>1?' (2ª leitura)':'')+'… '+Math.round((m.progress||0)*100)+'%';
+      else rev.msg='Preparando a leitura…';
+      $('#revMsg').textContent=rev.msg;
+    }});
+    await wk.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
+    for(var k=0;k<targets.length;k++){
+      if(rev) rev.pass=k+1;
+      var cv=await sheetCanvas(file,targets[k]);
+      var r=await wk.recognize(cv);
+      reads.push(parseFolhaText(r.data.text));
+      if(scoreParse(mergeReads(reads))>=1000) break;
+    }
+    var merged=mergeReads(reads);
+    revFromParsed(merged,'foto');
+  }catch(e){showRev([],'Não consegui ler a foto. Tente de novo com mais luz, ou digite os itens.')}
+  finally{if(wk) try{await wk.terminate()}catch(e){}}
+}
+
 function renderFolha(){
   var conf=fmode==='conf';
   $$('#folhaMode button').forEach(function(b){b.classList.toggle('on',b.dataset.v===fmode)});
@@ -1671,12 +1884,12 @@ document.addEventListener('click',function(e){
       armed(t,'Toque de novo para remover',function(){S.items=S.items.filter(function(x){return x.id!==it.id});touch();renderAll();toast('Removido.')});
       break;
     case 'folha-paste': {
-      var list=parseFolhaText($('#folhaPaste').value),n=0;
-      list.forEach(function(x){if(addFolha(x.code,(fmode==='conf'&&!x.qty)?1:x.qty,x.desc)) n++});
-      persist();renderFolha();
-      toast(list.length?(n+' '+(n===1?'item novo':'itens novos')+' na lista.'):'Não achei códigos de 5 números no texto.');
-      if(list.length) $('#folhaPaste').value='';
+      if(revFromText($('#folhaPaste').value,'texto')) $('#folhaPaste').value='';
       break}
+    case 'sheet-photo': $('#sheetFile').click(); break;
+    case 'rev-ok': applyRev(); break;
+    case 'rev-cancel': rev=null; renderRev(); break;
+    case 'rev-rm': {var ri=+t.closest('[data-r]').dataset.r; rev.items.splice(ri,1); renderRev(); break}
     case 'folha-rm': {var i=+t.closest('[data-i]').dataset.i;S.folha.splice(i,1);persist();renderFolha();break}
     case 'folha-clear': armed(t,'Toque de novo para limpar',function(){S.folha=[];S.fdone=false;persist();renderFolha()}); break;
     case 'folha-learn': {
@@ -1731,6 +1944,7 @@ document.addEventListener('click',function(e){
 document.addEventListener('change',function(e){
   var t=e.target;
   if(t.id==='photo'){var f=t.files&&t.files[0];t.value='';if(f) onPhoto(f);return}
+  if(t.id==='sheetFile'){var sf=t.files&&t.files[0];t.value='';if(sf) ocrSheet(sf);return}
   if(t.id==='catFile'){var cf=t.files&&t.files[0];t.value='';if(cf) onCatFile(cf);return}
   if(t.id==='planFile'){var g=t.files&&t.files[0];t.value='';if(g) onPlanFile(g);return}
   if(t.id==='lastDesc'){
@@ -1747,6 +1961,13 @@ document.addEventListener('change',function(e){
   }
 });
 document.addEventListener('input',function(e){
+  var rt=e.target,rf=rt.dataset&&rt.dataset.rf,rr=rf&&rt.closest('[data-r]');
+  if(rr&&rev){var it=rev.items[+rr.dataset.r]; if(it){
+    if(rf==='code'){rt.value=rt.value.replace(/\D/g,'').slice(0,5);it.code=rt.value;it.fixed='';it.out=false;rt.classList.remove('warn')}
+    else if(rf==='qty'){it.qty=Math.floor(+rt.value)||0;rt.classList.toggle('warn',!it.qty||it.qty>=10)}
+    else{it.desc=rt.value;it.descEdited=true}
+    revSum();
+  } return}
   var t=e.target,f=t.dataset&&t.dataset.f,row=t.closest&&t.closest('[data-wi]');
   if(!f||!row||!draft) return;
   var w=draft[+row.dataset.wi]; if(!w) return;
@@ -1784,7 +2005,7 @@ applyMode();
 if(!isEdit()) go('find');
 renderAll();
 if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist()}catch(e){}}
-window.__estoque={S:S,DB:DB,handleCode:handleCode,parseFolhaText:parseFolhaText,rowsToData:rowsToData,labelsHtml:labelsHtml};
+window.__estoque={mergeReads:mergeReads,applyRev:applyRev,revFromText:revFromText,getRev:function(){return rev},S:S,DB:DB,handleCode:handleCode,parseFolhaText:parseFolhaText,rowsToData:rowsToData,labelsHtml:labelsHtml};
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){try{navigator.serviceWorker.register('sw.js').catch(function(){})}catch(e){}}
 })();
 </script>
