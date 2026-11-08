@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1E3F9F">
+<meta name="theme-color" content="#17181A">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -13,24 +13,13 @@
 /* Layout: app de celular com contadores no topo e quatro áreas (Adicionar, Buscar, Folha, Planilha) numa barra inferior.
    Visual: estante de armazém. Azul para estrutura e posições, laranja para a ação principal e a aba ativa. */
 :root{
-  --bg:#EDF0F6; --surface:#FFFFFF; --surface-2:#E3E8F1; --ink:#121C33; --muted:#566280; --line:#CBD3E3;
-  --rack:#1E3F9F; --on-rack:#FFFFFF; --beam:#D44A00; --on-beam:#FFFFFF; --hl:#FFD9BF;
-  --danger:#B42318; --ok:#1A7F37; --warn-bg:#FFF1D6; --warn-ink:#7A4A00; --ok-bg:#E2F4E8;
+  color-scheme:dark;
+  --bg:#17181A; --surface:#25282C; --surface-2:#34383E; --ink:#ECEBE8; --muted:#A4A8AF; --line:#3C4046;
+  --rack:#E6E3DD; --on-rack:#17181A; --beam:#D97757; --on-beam:#1A0E09; --hl:#5B3A2D;
+  --danger:#FF8A80; --ok:#6FD79A; --warn-bg:#3B2F1C; --warn-ink:#F2CE8C; --ok-bg:#1F3A2B;
   --font-display:"Barlow Condensed","Arial Narrow","Roboto Condensed",Arial,sans-serif;
   --font-body:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
   --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#0D1526; --surface:#15203A; --surface-2:#1E2C4C; --ink:#E8EDF8; --muted:#9AA8C6; --line:#2B3B5F;
-    --rack:#7C9BFF; --on-rack:#0B1330; --beam:#FF8F47; --on-beam:#1B0F00; --hl:#5A2E10;
-    --danger:#FF8A80; --ok:#5FD38D; --warn-bg:#3A2A0A; --warn-ink:#FFD58A; --ok-bg:#12301F; color-scheme:dark;
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#0D1526; --surface:#15203A; --surface-2:#1E2C4C; --ink:#E8EDF8; --muted:#9AA8C6; --line:#2B3B5F;
-  --rack:#7C9BFF; --on-rack:#0B1330; --beam:#FF8F47; --on-beam:#1B0F00; --hl:#5A2E10;
-  --danger:#FF8A80; --ok:#5FD38D; --warn-bg:#3A2A0A; --warn-ink:#FFD58A; --ok-bg:#12301F; color-scheme:dark;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -143,13 +132,37 @@ button.chip{cursor:pointer}
 .scan .btn{background:#ffffff26;color:#fff;border-color:#ffffff55}
 @media (prefers-reduced-motion: no-preference){ .btn,.cell{transition:background-color .12s,border-color .12s} }
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+.wed{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.chk{display:flex;gap:10px;align-items:center;font-size:14px}
+.chk input{width:22px;height:22px;accent-color:var(--beam)}
+.seg button{overflow-wrap:anywhere}
+#printSheet{position:fixed;inset:0;z-index:70;background:#fff;color:#000;overflow:auto;padding:12px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+#printSheet .pbar{position:sticky;top:0;display:flex;gap:8px;padding:8px 0;background:#fff}
+#printSheet .pbar button{min-height:46px;padding:0 14px;border-radius:10px;border:1px solid #888;background:#eee;color:#000;font-weight:600;font-size:15px}
+#printSheet .pbar button:first-child{background:#D97757;border-color:#D97757}
+#printSheet .pnote{margin:4px 0 12px;font-size:13px;color:#444}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0}
+.pgrid .wh{grid-column:1/-1;margin:14px 0 6px;font:700 18px Arial,sans-serif}
+.lbl{height:26mm;border:.3mm dashed #999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1mm;break-inside:avoid;background:#fff}
+.lbl svg{height:14mm;max-width:92%;display:block}
+.lbl .t{font:700 15pt "Courier New",Courier,monospace;line-height:1}
+@page{size:A4;margin:10mm}
+@media print{
+  body>*:not(#printSheet){display:none!important}
+  #printSheet{position:static;overflow:visible;padding:0}
+  #printSheet .pbar,#printSheet .pnote{display:none}
+  .pgrid{grid-template-columns:repeat(3,1fr)}
+  .pgrid .wh{break-before:page;margin:0 0 3mm}
+  .pgrid .wh:first-child{break-before:auto}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>Mapa de Estoque</h1>
+      <h1 id="storeTitle">Estoque</h1>
       <p class="stats" id="stats" hidden></p>
     </div>
     <span class="badge" id="badge" data-k="ok">Pronto</span>
@@ -158,8 +171,8 @@ button.chip{cursor:pointer}
   <main>
     <!-- ADICIONAR -->
     <section id="tab-add" class="stack">
-      <div class="card">
-        <h2 class="lab">Posição atual</h2>
+      <div class="card" id="stepPos">
+        <h2 class="lab">1 · Posição</h2>
         <span class="poscode mono" id="posCode">—</span>
         <div class="parts" hidden>
           <div class="part" id="partWall"><small>Parede</small><b>—</b></div>
@@ -168,6 +181,10 @@ button.chip{cursor:pointer}
         </div>
         <p class="hint" id="posLabel"></p>
         <p class="hint" id="posNote" hidden></p>
+        <button class="btn big" type="button" data-act="scan-add" id="scanPosBtn">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.800-7 11-7 11z"/><circle cx="12" cy="10" r="2.500"/></svg>
+          <span>Ler posição</span>
+        </button>
         <details class="manual" id="manual">
           <summary>Escolher a posição à mão</summary>
           <div class="stack">
@@ -178,15 +195,16 @@ button.chip{cursor:pointer}
         </details>
       </div>
 
-      <div class="card">
+      <div class="card" id="stepProd">
+        <h2 class="lab">2 · Produto</h2>
         <button class="btn beam big" type="button" data-act="scan-add" id="scanAddBtn">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M18 6v12M20 6v12"/></svg>
-          <span>Ler com a câmera</span>
+          <span>Ler produto</span>
         </button>
         <button class="btn" type="button" data-act="photo-add">Tirar uma foto do código</button>
         <label class="field"><span class="sr">Código</span>
           <span class="row2">
-            <input class="in mono" id="codeInput" type="text" autocomplete="off" autocapitalize="characters" placeholder="C2-A-F-4 ou 7891234567895">
+            <input class="in mono" id="codeInput" type="text" autocomplete="off" autocapitalize="characters" placeholder="Posição ou EAN">
             <button class="btn" type="button" data-act="use-code">OK</button>
           </span>
         </label>
@@ -255,6 +273,29 @@ button.chip{cursor:pointer}
       <ul class="list" id="folhaList"></ul>
     </section>
 
+    <!-- LOJA -->
+    <section id="tab-loja" class="stack" hidden>
+      <div class="card">
+        <h2 class="lab">Loja</h2>
+        <div class="seg" id="storeSeg"></div>
+        <button class="btn" type="button" data-act="store-new" id="storeNewBtn">Nova loja</button>
+        <div class="stack" id="newBox" hidden>
+          <label class="field"><span>Nome da nova loja</span><input class="in" id="newName" type="text" autocomplete="off" placeholder="Ex.: Loja Centro"></label>
+          <button class="btn beam" type="button" data-act="store-create">Criar loja (começa com o layout desta)</button>
+        </div>
+      </div>
+      <div class="card" id="layoutCard">
+        <h2 class="lab">Layout desta loja</h2>
+        <label class="field"><span>Nome da loja</span><input class="in" id="storeName" type="text" autocomplete="off"></label>
+        <div class="stack" id="wallEd"></div>
+        <button class="btn" type="button" data-act="wall-add">+ Adicionar parede</button>
+        <p class="notice" id="layoutMsg" hidden></p>
+        <button class="btn beam big" type="button" data-act="layout-save">Salvar layout</button>
+        <button class="btn" type="button" data-act="labels">Imprimir etiquetas</button>
+        <button class="btn danger" type="button" data-act="store-del" id="storeDelBtn">Excluir esta loja</button>
+      </div>
+    </section>
+
     <!-- PLANILHA -->
     <section id="tab-plan" class="stack" hidden>
       <div class="card">
@@ -282,16 +323,26 @@ button.chip{cursor:pointer}
       </div>
       <div class="card" id="dangerCard">
         <h2 class="lab">Apagar</h2>
-        <button class="btn danger" type="button" data-act="wipe" id="wipeBtn">Apagar todos os dados deste aparelho</button>
+        <button class="btn danger" type="button" data-act="wipe" id="wipeBtn">Apagar os produtos desta loja</button>
       </div>
     </section>
   </main>
+</div>
+
+<div id="printSheet" hidden>
+  <div class="pbar">
+    <button type="button" data-act="print-go">Imprimir ou salvar PDF</button>
+    <button type="button" data-act="print-close">Fechar</button>
+  </div>
+  <p class="pnote">Imprima em tamanho real (100%). Cada etiqueta é uma posição completa.</p>
+  <div class="pgrid" id="pgrid"></div>
 </div>
 
 <nav class="tabs" aria-label="Seções"><div class="inner" id="tabbar">
   <button type="button" data-act="tab" data-tab="add" class="on" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
   <button type="button" data-act="tab" data-tab="find"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Buscar</button>
   <button type="button" data-act="tab" data-tab="folha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg>Folha</button>
+  <button type="button" data-act="tab" data-tab="loja"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9M3 9h18M4 9v11h16V9M9 20v-6h6v6"/></svg>Loja</button>
   <button type="button" data-act="tab" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>Planilha</button>
 </div></nav>
 
@@ -713,46 +764,60 @@ var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelect
 /* ---- estrutura do estoque ----
    Cada parede é uma grade: letras no topo (estantes), números na lateral (prateleiras).
    Corredores: 12 estantes (A-L) x 6 prateleiras. Paredão: 3 prateleiras x 6 = 18 letras (A-R) x 13 números. */
-var LET='ABCDEFGHIJKLMNOPQR';
-var WALLS=[
-  {id:'C1B',cols:12,rows:6},
-  {id:'C2A',cols:12,rows:6},{id:'C2B',cols:12,rows:6},
-  {id:'C3A',cols:12,rows:6},{id:'C3B',cols:12,rows:6},
-  {id:'PAR',cols:18,rows:13}
+var LET='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+var DEFAULT_WALLS=[
+  {id:'C1-B',name:'Corredor 1 · Lado B',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
+  {id:'C2-A',name:'Corredor 2 · Lado A',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
+  {id:'C2-B',name:'Corredor 2 · Lado B',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
+  {id:'C3-A',name:'Corredor 3 · Lado A',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
+  {id:'C3-B',name:'Corredor 3 · Lado B',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
+  {id:'PAR',name:'Paredão',cols:18,rows:13,cn:'Letra',rn:'Número',one:true}
 ];
-var WALL={}, WORDER={};
-WALLS.forEach(function(w,i){WALL[w.id]=w;WORDER[w.id]=i});
-var TOTAL=WALLS.reduce(function(n,w){return n+w.cols*w.rows},0); /* 5 x 72 + 234 = 594 */
+var WALLS=[], WALL={}, WORDER={}, TOTAL=0;
+function cloneWalls(w){return w.map(function(x){return {id:x.id,name:x.name,cols:x.cols,rows:x.rows,cn:x.cn||'Estante',rn:x.rn||'Prateleira',one:!!x.one}})}
+function applyLayout(walls){
+  WALLS=walls; WALL={}; WORDER={}; TOTAL=0;
+  walls.forEach(function(w,i){WALL[w.id]=w;WORDER[w.id]=i;TOTAL+=w.cols*w.rows});
+}
+function withLayout(walls,fn){
+  var sv=[WALLS,WALL,WORDER,TOTAL]; applyLayout(walls);
+  try{return fn()}finally{WALLS=sv[0];WALL=sv[1];WORDER=sv[2];TOTAL=sv[3]}
+}
+applyLayout(DEFAULT_WALLS);
 
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var norm=function(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()};
-function wallName(id){return id==='PAR'?'Paredão':'Corredor '+id[1]+' · Lado '+id[2]}
-function wallShort(id){return id==='PAR'?'Paredão':id}
+function wallName(id){return WALL[id]&&WALL[id].name||id}
+function wallShort(id){return id}
 function checkP(p){
   var w=WALL[p.wall]; if(!w) return null;
   if(p.letter&&LET.indexOf(p.letter)>=w.cols) return null;
   if(p.num!==null&&(p.num<1||p.num>w.rows)) return null;
   return p;
 }
-/* Aceita posição (C2A-F4), etiqueta de letra (C2A-F) ou de número (C2-A-4). */
+/* Posição: PAREDE-LETRA-NÚMERO, ex.: C2-A-F-4 ou PAR-G-7. Etiqueta só da letra (C2-A-F) ou só do número (C2-A-4). */
 function fmtPos(wall,letter,num){
-  var a=wall==='PAR'?'PAR':wall.slice(0,2)+'-'+wall[2];
-  return a+'-'+(letter||'?')+(letter||num?'-':'')+(num||'?');
+  return wall+'-'+(letter||'?')+(letter||num?'-':'')+(num||'?');
 }
 function parseCode(t){
-  t=String(t).replace(/^(C[1-3])-([AB])(?=-|$)/,'$1$2').replace(/^(C[1-3][AB]|PAR)-([A-R])-(\d)/,'$1-$2$3');
-  var m=/^(C[1-3][AB]|PAR)-([A-R])(\d{1,2})$/.exec(t);
-  if(m) return checkP({wall:m[1],letter:m[2],num:+m[3]});
-  m=/^(C[1-3][AB]|PAR)-([A-R])$/.exec(t);
-  if(m) return checkP({wall:m[1],letter:m[2],num:null});
-  m=/^(C[1-3][AB]|PAR)-(\d{1,2})$/.exec(t);
-  if(m) return checkP({wall:m[1],letter:null,num:+m[2]});
+  t=String(t).toUpperCase().replace(/\s+/g,'');
+  var lg=t.replace(/^(C[1-3])([AB])(?=-)/,'$1-$2'), cands=lg!==t?[t,lg]:[t];
+  var ids=WALLS.map(function(w){return w.id}).sort(function(a,b){return b.length-a.length});
+  for(var c=0;c<cands.length;c++) for(var k=0;k<ids.length;k++){
+    var id=ids[k],x=cands[c];
+    if(x.indexOf(id+'-')!==0) continue;
+    var rest=x.slice(id.length+1),m=/^([A-Z])-?(\d{1,2})$/.exec(rest),q=null;
+    if(m) q=checkP({wall:id,letter:m[1],num:+m[2]});
+    else if((m=/^([A-Z])$/.exec(rest))) q=checkP({wall:id,letter:m[1],num:null});
+    else if((m=/^(\d{1,2})$/.exec(rest))) q=checkP({wall:id,letter:null,num:+m[1]});
+    if(q) return q;
+  }
   return null;
 }
 function posLabel(pos){
   var p=parseCode(pos); if(!p||!p.letter||p.num===null) return pos;
-  if(p.wall==='PAR') return 'Paredão · Prateleira '+(Math.floor(LET.indexOf(p.letter)/6)+1)+' · Letra '+p.letter+' · Número '+p.num;
-  return 'Corredor '+p.wall[1]+' · Lado '+p.wall[2]+' · Estante '+p.letter+' · Prateleira '+p.num;
+  var w=WALL[p.wall];
+  return w.name+' · '+(w.cn||'Letra')+' '+p.letter+' · '+(w.rn||'Número')+' '+p.num;
 }
 function ikey(i){return (WORDER[i.w]*100+LET.indexOf(i.l))*100+i.n}
 function codeFromEan(d){return d.slice(-6,-1)}
@@ -766,13 +831,29 @@ function pad2(n){return String(n).padStart(2,'0')}
 function fmtDT(ts){if(!ts) return 'nunca';var d=new Date(ts);return pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+' '+pad2(d.getHours())+':'+pad2(d.getMinutes())}
 
 /* ---- dados ---- */
-var KEY='estoque_v1';
-var S={items:[],cat:{},changed:0,saved:0,mode:'edicao',folha:[]};
+var KEY='estoque_v2', KEY1='estoque_v1';
+var S={items:[],cat:{},changed:0,saved:0,mode:'edicao',folha:[],name:'',walls:[]};
+var DB={stores:[],cur:null};
 var byPos=new Map(), storageOk=true;
 function mkItem(pos,ean,code,desc,ts){
   var p=parseCode(pos); if(!p||!p.letter||p.num===null) return null;
   pos=fmtPos(p.wall,p.letter,p.num);
-  return {id:p.wall==='PAR'?pos:pos+'|'+(ean||code),pos:pos,w:p.wall,l:p.letter,n:p.num,ean:ean||'',code:code||(ean?codeFromEan(ean):''),desc:desc||'',ts:ts||Date.now()};
+  return {id:WALL[p.wall].one?pos:pos+'|'+(ean||code),pos:pos,w:p.wall,l:p.letter,n:p.num,ean:ean||'',code:code||(ean?codeFromEan(ean):''),desc:desc||'',ts:ts||Date.now()};
+}
+function toRaw(i){return [i.pos,i.ean,i.code,i.desc,i.ts]}
+function newId(){return 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function curStore(){return DB.stores.filter(function(s){return s.id===DB.cur})[0]}
+function stash(){
+  var st=curStore(); if(!st) return;
+  st.items=S.items.map(toRaw); st.changed=S.changed; st.saved=S.saved; st.folha=S.folha; st.walls=S.walls; st.name=S.name;
+}
+function activate(id){
+  var st=DB.stores.filter(function(x){return x.id===id})[0]||DB.stores[0];
+  DB.cur=st.id; S.name=st.name; S.walls=st.walls; applyLayout(S.walls);
+  S.items=(st.items||[]).map(function(r){return mkItem(r[0],r[1],r[2],r[3],r[4])}).filter(Boolean);
+  S.changed=st.changed||0; S.saved=st.saved||0; S.folha=st.folha||[];
+  cur={wall:null,letter:null,num:null}; pendingEan=null; lastId=null;
+  reindex();
 }
 function reindex(){
   byPos=new Map();
@@ -780,19 +861,24 @@ function reindex(){
 }
 function persist(){
   try{
-    localStorage.setItem(KEY,JSON.stringify({v:1,items:S.items.map(function(i){return [i.pos,i.ean,i.code,i.desc,i.ts]}),cat:S.cat,changed:S.changed,saved:S.saved,mode:S.mode,folha:S.folha}));
+    stash();
+    localStorage.setItem(KEY,JSON.stringify({v:2,cur:DB.cur,mode:S.mode,cat:S.cat,stores:DB.stores}));
     storageOk=true;
   }catch(e){storageOk=false}
 }
 function load(){
-  try{
-    var j=JSON.parse(localStorage.getItem(KEY)||'null');
-    if(j){
-      S.items=(j.items||[]).map(function(r){return mkItem(r[0],r[1],r[2],r[3],r[4])}).filter(Boolean);
-      S.cat=j.cat||{}; S.changed=j.changed||0; S.saved=j.saved||0; S.mode=j.mode==='consulta'?'consulta':'edicao'; S.folha=j.folha||[];
-    }
-  }catch(e){}
-  reindex();
+  var j=null,j1=null;
+  try{j=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+  if(j&&j.stores&&j.stores.length){
+    DB.stores=j.stores.map(function(st){return {id:st.id||newId(),name:st.name||'Loja',walls:cloneWalls(st.walls&&st.walls.length?st.walls:DEFAULT_WALLS),items:st.items||[],changed:st.changed||0,saved:st.saved||0,folha:st.folha||[]}});
+    S.cat=j.cat||{}; S.mode=j.mode==='consulta'?'consulta':'edicao';
+    activate(j.cur);
+  } else {
+    try{j1=JSON.parse(localStorage.getItem(KEY1)||'null')}catch(e){}
+    var st={id:newId(),name:'Daiodoro',walls:cloneWalls(DEFAULT_WALLS),items:(j1&&j1.items)||[],changed:(j1&&j1.changed)||0,saved:(j1&&j1.saved)||0,folha:(j1&&j1.folha)||[]};
+    DB.stores=[st]; S.cat=(j1&&j1.cat)||{}; S.mode=(j1&&j1.mode==='consulta')?'consulta':'edicao';
+    activate(st.id);
+  }
 }
 function touch(){S.changed=Date.now();reindex();persist()}
 function itemById(id){for(var i=0;i<S.items.length;i++) if(S.items[i].id===id) return S.items[i];return null}
@@ -807,20 +893,26 @@ function isEdit(){return S.mode==='edicao'}
 function go(t){
   if(t==='add'&&!isEdit()) t='find';
   tab=t;
-  ['add','find','folha','plan'].forEach(function(n){$('#tab-'+n).hidden=(n!==t)});
+  ['add','find','folha','loja','plan'].forEach(function(n){$('#tab-'+n).hidden=(n!==t)});
   $$('#tabbar button').forEach(function(b){var on=b.dataset.tab===t;b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if(t==='find') renderFind();
   if(t==='folha') renderFolha();
   if(t==='plan') renderPlan();
+  if(t==='loja'){draft=null;renderLoja()}
   window.scrollTo(0,0);
 }
 
 /* ---- telas ---- */
+function anyDirty(){
+  stash();
+  return DB.stores.some(function(st){return st.changed>st.saved&&(st.items||[]).length});
+}
 function renderStats(){
+  $('#storeTitle').textContent=S.name||'Estoque';
   $('#stats').textContent=TOTAL+' posições · '+byPos.size+' ocupadas · '+S.items.length+(S.items.length===1?' produto':' produtos');
   var b=$('#badge');
   if(!storageOk){b.dataset.k='warn';b.textContent='Sem memória no aparelho'}
-  else if(S.changed>S.saved&&S.items.length){b.dataset.k='warn';b.textContent='Salvar planilha'}
+  else if(anyDirty()){b.dataset.k='warn';b.textContent='Salvar planilha'}
   else{b.dataset.k='ok';b.textContent=isEdit()?'Edição':'Consulta'}
 }
 function setPart(id,val){var el=$('#'+id);el.classList.toggle('ok',!!val);el.querySelector('b').textContent=val||'—'}
@@ -833,10 +925,11 @@ function renderCur(){
   setPart('partNum',cur.num?String(cur.num):'');
   var lab;
   if(p) lab=posLabel(p);
-  else if(!cur.wall) lab='Leia a etiqueta da letra e a do número, ou escolha à mão.';
+  else if(!cur.wall) lab='Leia a etiqueta da posição.';
   else if(!cur.letter) lab=wallName(cur.wall)+'. Falta a letra (etiqueta do topo).';
   else lab=wallName(cur.wall)+'. Falta o número (etiqueta da lateral).';
-  $('#posLabel').textContent=lab; $('#scanSub').textContent=lab;
+  $('#posLabel').textContent=lab; $('#scanSub').textContent=p?'Posição ok. Leia os produtos, um por vez.':lab;
+  $('#scanPosBtn').classList.toggle('beam',!p); $('#scanAddBtn').classList.toggle('beam',!!p);
   var here=p?(byPos.get(p)||[]):[];
   $('#posNote').textContent=p?(here.length?'Já tem '+here.length+(here.length===1?' produto':' produtos')+' nesta posição.':'Posição vazia.'):'';
 }
@@ -946,32 +1039,42 @@ function renderFolha(){
 
 /* ---- planilha ---- */
 function buildSheets(){
-  var items=S.items.slice().sort(function(a,b){return ikey(a)-ikey(b)||a.desc.localeCompare(b.desc,'pt-BR')});
-  var est=[['Posição','Parede','Letra','Número','Código','EAN','Descrição']];
-  items.forEach(function(i){est.push([i.pos,wallName(i.w),i.l,i.n,i.code,i.ean,i.desc])});
+  stash();
+  var est=[['Loja','Posição','Parede','Letra','Número','Código','EAN','Descrição']],lay=[['Loja','Código','Nome','Letras (colunas)','Números (linhas)','Nome da letra','Nome do número','Um produto por posição']];
   var codes={};Object.keys(S.cat).forEach(function(c){codes[c]=S.cat[c]});
-  items.forEach(function(i){if(i.code&&i.desc&&!codes[i.code]) codes[i.code]=i.desc});
+  DB.stores.forEach(function(st){
+    st.walls.forEach(function(w){lay.push([st.name,w.id,w.name,w.cols,w.rows,w.cn||'',w.rn||'',w.one?'Sim':'Não'])});
+    withLayout(st.walls,function(){
+      var items=(st.items||[]).map(function(r){return mkItem(r[0],r[1],r[2],r[3],r[4])}).filter(Boolean);
+      items.sort(function(a,b){return ikey(a)-ikey(b)||a.desc.localeCompare(b.desc,'pt-BR')});
+      items.forEach(function(i){
+        est.push([st.name,i.pos,wallName(i.w),i.l,i.n,i.code,i.ean,i.desc]);
+        if(i.code&&i.desc&&!codes[i.code]) codes[i.code]=i.desc;
+      });
+    });
+  });
   var cat=[['Código','Descrição']];
   Object.keys(codes).sort().forEach(function(c){cat.push([c,codes[c]])});
-  return [{name:'Estoque',widths:[12,24,8,9,10,16,52],rows:est},{name:'Catálogo',widths:[10,60],rows:cat}];
+  return [{name:'Estoque',widths:[18,14,26,8,9,10,16,52],rows:est},{name:'Layout',widths:[18,10,28,16,16,14,16,22],rows:lay},{name:'Catálogo',widths:[10,60],rows:cat}];
 }
 function xlsxFile(){
   var u8=buildXlsx(buildSheets()), d=new Date();
   var name='estoque-'+d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'.xlsx';
   return {blob:new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),name:name};
 }
+function markSaved(){var t=Date.now();S.saved=t;stash();DB.stores.forEach(function(st){st.saved=t});persist()}
 function saveXlsx(){
   var f=xlsxFile(),url=URL.createObjectURL(f.blob),a=document.createElement('a');
   a.href=url;a.download=f.name;document.body.appendChild(a);a.click();
   setTimeout(function(){URL.revokeObjectURL(url);a.remove()},4000);
-  S.saved=Date.now();persist();renderStats();renderPlan();
+  markSaved();renderStats();renderPlan();
   toast('Planilha salva: '+f.name);
 }
 async function shareXlsx(){
   var f=xlsxFile(),file=new File([f.blob],f.name,{type:f.blob.type});
   try{
     await navigator.share({files:[file],title:'Estoque'});
-    S.saved=Date.now();persist();renderStats();renderPlan();
+    markSaved();renderStats();renderPlan();
   }catch(e){if(e&&e.name!=='AbortError') toast('Não consegui compartilhar. Use Salvar planilha.')}
 }
 function renderPlan(){
@@ -983,7 +1086,7 @@ function renderPlan(){
    +'<div class="stat"><span>Descrições no catálogo</span><b class="mono">'+Object.keys(S.cat).length+'</b></div>'
    +'<div class="stat"><span>Última alteração</span><b class="mono">'+fmtDT(S.changed)+'</b></div>'
    +'<div class="stat"><span>Última planilha salva</span><b class="mono">'+fmtDT(S.saved)+'</b></div>';
-  $('#planDirty').hidden=!(S.items.length&&S.changed>S.saved);
+  $('#planDirty').hidden=!anyDirty();
   $('#shareBtn').hidden=!(navigator.canShare&&window.File&&navigator.canShare({files:[new File([''],'a.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})]}));
   $$('#segMode button').forEach(function(b){b.classList.toggle('on',b.dataset.v===S.mode)});
   $('#modeHint').textContent=isEdit()
@@ -993,9 +1096,10 @@ function renderPlan(){
 }
 function headerIdx(rows){
   for(var r=0;r<Math.min(rows.length,12);r++){
-    var h=(rows[r]||[]).map(function(x){return norm(x).trim()}),o={pos:-1,code:-1,ean:-1,desc:-1};
+    var h=(rows[r]||[]).map(function(x){return norm(x).trim()}),o={pos:-1,code:-1,ean:-1,desc:-1,loja:-1};
     h.forEach(function(x,i){
-      if(o.pos<0&&/^(posicao|pos)$/.test(x)) o.pos=i;
+      if(o.loja<0&&/^(loja|store|filial)$/.test(x)) o.loja=i;
+      else if(o.pos<0&&/^(posicao|pos)$/.test(x)) o.pos=i;
       else if(o.ean<0&&/^(ean|gtin|codigo de barras)/.test(x)) o.ean=i;
       else if(o.code<0&&/^(codigo|cod|item|sku|referencia|ref)\b/.test(x)) o.code=i;
       else if(o.desc<0&&/(descri|produto|nome)/.test(x)) o.desc=i;
@@ -1011,23 +1115,34 @@ function code5(v){
   return '';
 }
 function rowsToData(sheets){
-  var items=[],cat={};
+  var byName={},order=[],cat={};
+  function store(n){if(!byName[n]){byName[n]={name:n,walls:null,items:[]};order.push(byName[n])}return byName[n]}
   sheets.forEach(function(sh){
+    if(norm(sh.name)==='layout'){
+      for(var r=1;r<sh.rows.length;r++){
+        var row=sh.rows[r]||[],id=String(row[1]||'').toUpperCase().replace(/\s+/g,''),cols=Math.floor(+row[3]),rows=Math.floor(+row[4]);
+        if(!id||!(cols>=1&&cols<=26)||!(rows>=1&&rows<=99)) continue;
+        var st=store(String(row[0]||'').trim()||'Loja'); if(!st.walls) st.walls=[];
+        st.walls.push({id:id,name:String(row[2]||'').trim()||id,cols:cols,rows:rows,cn:String(row[5]||'').trim()||'Estante',rn:String(row[6]||'').trim()||'Prateleira',one:/^s/i.test(String(row[7]||''))});
+      }
+      return;
+    }
     var h=headerIdx(sh.rows); if(!h) return;
-    for(var r=h.row+1;r<sh.rows.length;r++){
-      var row=sh.rows[r]||[],o=h.o;
-      var desc=o.desc>=0?String(row[o.desc]||'').replace(/\s+/g,' ').trim():'';
-      var ean=o.ean>=0?String(row[o.ean]||'').replace(/\D/g,''):'';
+    for(var r2=h.row+1;r2<sh.rows.length;r2++){
+      var rw=sh.rows[r2]||[],o=h.o;
+      var desc=o.desc>=0?String(rw[o.desc]||'').replace(/\s+/g,' ').trim():'';
+      var ean=o.ean>=0?String(rw[o.ean]||'').replace(/\D/g,''):'';
       if(ean&&(ean.length<8||ean.length>14)) ean='';
-      var code=o.code>=0?code5(row[o.code]):'';
+      var code=o.code>=0?code5(rw[o.code]):'';
       if(!code&&ean) code=codeFromEan(ean);
       if(o.pos>=0){
-        var pos=String(row[o.pos]||'').toUpperCase().replace(/\s+/g,'');
-        var it=mkItem(pos,ean,code,desc,Date.now()); if(it) items.push(it);
+        var pos=String(rw[o.pos]||'').toUpperCase().replace(/\s+/g,'');
+        var nm=o.loja>=0?String(rw[o.loja]||'').trim():'';
+        if(pos) store(nm).items.push({pos:pos,ean:ean,code:code,desc:desc});
       } else if(code&&desc) cat[code]=desc;
     }
   });
-  return {items:items,cat:cat};
+  return {stores:order,cat:cat};
 }
 var pendingImport=null;
 async function onPlanFile(file){
@@ -1036,24 +1151,44 @@ async function onPlanFile(file){
     if(/\.(csv|txt)$/.test(name)||file.type==='text/csv') sheets=[{name:'CSV',rows:parseCSV(await file.text())}];
     else sheets=await readXlsx(new Uint8Array(await file.arrayBuffer()));
     var d=rowsToData(sheets);
-    if(!d.items.length&&!Object.keys(d.cat).length){toast('Não achei produtos nem descrições nesta planilha.');return}
+    var ni=d.stores.reduce(function(n,x){return n+x.items.length},0),nc=Object.keys(d.cat).length;
+    if(!ni&&!nc&&!d.stores.some(function(x){return x.walls})){toast('Não achei produtos nem descrições nesta planilha.');return}
     pendingImport=d;
-    var nc=Object.keys(d.cat).length;
-    $('#impText').textContent='A planilha tem '+d.items.length+(d.items.length===1?' produto':' produtos')+' e '+nc+(nc===1?' descrição':' descrições')+' de catálogo. '
-      +(d.items.length?'Substituir os dados guardados neste aparelho por estes?':'Juntar estas descrições ao catálogo deste aparelho?');
+    var named=d.stores.filter(function(x){return x.name});
+    $('#impText').textContent='A planilha tem '+ni+(ni===1?' produto':' produtos')+(named.length>1?' em '+named.length+' lojas':'')+' e '+nc+(nc===1?' descrição':' descrições')+' de catálogo. '
+      +(ni||named.length?'Substituir os dados guardados neste aparelho por estes?':'Juntar estas descrições ao catálogo deste aparelho?');
     $('#impBox').hidden=false;
   }catch(e){toast(e&&e.message?e.message:'Não consegui abrir a planilha.')}
 }
+function rawFor(walls,list){
+  return withLayout(walls,function(){return list.map(function(x){return mkItem(x.pos,x.ean,x.code,x.desc,Date.now())}).filter(Boolean).map(toRaw)});
+}
 function applyImport(){
   var d=pendingImport; if(!d) return;
-  if(d.items.length){
-    S.items=d.items;
-    S.cat={};
+  stash();
+  var named=d.stores.filter(function(x){return x.name}),keep=S.name;
+  if(named.length){
+    var old=DB.stores,ns=[];
+    named.forEach(function(x){
+      var prev=old.filter(function(o){return o.name===x.name})[0];
+      var walls=x.walls?cloneWalls(x.walls):(prev?prev.walls:cloneWalls(S.walls));
+      ns.push({id:prev?prev.id:newId(),name:x.name,walls:walls,items:rawFor(walls,x.items),changed:Date.now(),saved:Date.now(),folha:prev?prev.folha:[]});
+    });
+    DB.stores=ns;
+    var un=d.stores.filter(function(x){return !x.name});
+    if(un.length){var f=ns.filter(function(x){return x.name===keep})[0]||ns[0];f.items=f.items.concat(rawFor(f.walls,un[0].items))}
+    activate((ns.filter(function(x){return x.name===keep})[0]||ns[0]).id);
+  } else {
+    var all=[];d.stores.forEach(function(x){all=all.concat(x.items)});
+    if(all.length) S.items=withLayout(S.walls,function(){return all.map(function(x){return mkItem(x.pos,x.ean,x.code,x.desc,Date.now())}).filter(Boolean)});
   }
-  Object.keys(d.cat).forEach(function(c){S.cat[c]=d.cat[c]});
-  d.items.forEach(function(i){if(i.code&&i.desc&&!S.cat[i.code]) S.cat[i.code]=i.desc});
+  if(Object.keys(d.cat).length||S.items.length){
+    if(named.length||d.stores.some(function(x){return x.items.length})) S.cat={};
+    Object.keys(d.cat).forEach(function(c){S.cat[c]=d.cat[c]});
+  }
+  S.items.forEach(function(i){if(i.code&&i.desc&&!S.cat[i.code]) S.cat[i.code]=i.desc});
   pendingImport=null;$('#impBox').hidden=true;
-  S.saved=Date.now();touch();S.saved=S.changed;persist();
+  S.saved=Date.now();touch();S.saved=S.changed;DB.stores.forEach(function(st){st.saved=Date.now()});persist();
   renderAll();toast('Planilha carregada.');
 }
 
@@ -1066,7 +1201,7 @@ function applyParsed(p){
   pendingEan=null; $('#dup').hidden=true;
   renderCur(); renderPicker();
   var pos=curPos();
-  toast(pos?'Posição '+pos:(!cur.letter?'Parede '+cur.wall+'. Falta a letra.':'Parede '+cur.wall+', letra '+cur.letter+'. Falta o número.'));
+  toast(pos?'Posição '+pos:(!cur.letter?wallName(cur.wall)+'. Falta a letra.':wallName(cur.wall)+', letra '+cur.letter+'. Falta o número.'));
 }
 function handleCode(raw){
   var t=String(raw||'').trim().toUpperCase().replace(/\s+/g,'');
@@ -1075,12 +1210,12 @@ function handleCode(raw){
   if(p){applyParsed(p);return}
   if(/^\d{8,14}$/.test(t)){addProduct(t.length===12?'0'+t:t);return}
   if(cur.wall){
-    var s=/^([A-R])(\d{1,2})?$/.exec(t),n=/^(\d{1,2})$/.exec(t),q=null;
+    var s=/^([A-Z])(\d{1,2})?$/.exec(t),n=/^(\d{1,2})$/.exec(t),q=null;
     if(s) q=checkP({wall:cur.wall,letter:s[1],num:s[2]?+s[2]:null});
     else if(n) q=checkP({wall:cur.wall,letter:null,num:+n[1]});
     if(q){applyParsed(q);return}
   }
-  toast('Código não reconhecido. Use uma etiqueta da prateleira (ex.: C2-A-F) ou o EAN do produto.');
+  toast('Código não reconhecido. Leia uma etiqueta de posição desta loja ou o EAN do produto.');
 }
 function descFor(ean){
   var code=codeFromEan(ean);
@@ -1095,7 +1230,7 @@ function addProduct(ean){
   var here=byPos.get(pos)||[];
   if(here.some(function(i){return i.ean===ean})){toast('Este produto já está em '+pos+'.');return}
   var others=S.items.filter(function(i){return i.ean===ean&&i.pos!==pos});
-  var occ=(cur.wall==='PAR'&&here.length)?here[0]:null;
+  var occ=(WALL[cur.wall]&&WALL[cur.wall].one&&here.length)?here[0]:null;
   if(others.length||occ){
     pendingEan=ean;
     var parts=['Código '+codeFromEan(ean)+' (EAN '+ean+').'];
@@ -1114,7 +1249,7 @@ function commit(ean){
   var pos=curPos(); if(!pos) return;
   $('#dup').hidden=true; pendingEan=null;
   var d=descFor(ean), it=mkItem(pos,ean,codeFromEan(ean),d.desc,Date.now());
-  S.items=S.items.filter(function(x){return x.id!==it.id&&!(it.w==='PAR'&&x.pos===pos)});
+  S.items=S.items.filter(function(x){return x.id!==it.id&&!(WALL[it.w].one&&x.pos===pos)});
   S.items.push(it); lastId=it.id; touch(); renderAll();
   $('#lastTitle').textContent='Guardado em '+pos;
   $('#lastCode').textContent=it.code;
@@ -1232,6 +1367,102 @@ async function onPhoto(file){
   }catch(e){toast('Não consegui abrir a foto. Tente de novo.')}
 }
 
+
+/* ---- lojas e layout ---- */
+var draft=null;
+function openDraft(){draft=S.walls.map(function(w){return {orig:w.id,id:w.id,name:w.name,cols:w.cols,rows:w.rows,cn:w.cn||'Estante',rn:w.rn||'Prateleira',one:!!w.one}})}
+function wedHtml(w,i){
+  return '<div class="wed" data-wi="'+i+'">'
+   +'<div class="row2e"><label class="field"><span>Código da parede</span><input class="in mono" data-f="id" value="'+esc(w.id)+'" maxlength="12" autocapitalize="characters" autocomplete="off"></label>'
+   +'<label class="field"><span>Nome</span><input class="in" data-f="name" value="'+esc(w.name)+'" autocomplete="off"></label></div>'
+   +'<div class="row2e"><label class="field"><span>Letras (1 a 26)</span><input class="in" data-f="cols" type="number" inputmode="numeric" min="1" max="26" value="'+esc(w.cols)+'"></label>'
+   +'<label class="field"><span>Números (1 a 99)</span><input class="in" data-f="rows" type="number" inputmode="numeric" min="1" max="99" value="'+esc(w.rows)+'"></label></div>'
+   +'<div class="row2e"><label class="field"><span>Nome da letra</span><input class="in" data-f="cn" value="'+esc(w.cn)+'" autocomplete="off"></label>'
+   +'<label class="field"><span>Nome do número</span><input class="in" data-f="rn" value="'+esc(w.rn)+'" autocomplete="off"></label></div>'
+   +'<label class="chk"><input type="checkbox" data-f="one"'+(w.one?' checked':'')+'> Um produto por posição</label>'
+   +'<button type="button" class="rm" data-act="wall-rm">Remover parede</button></div>';
+}
+function renderLoja(){
+  var ed=isEdit();
+  $('#storeSeg').innerHTML=DB.stores.map(function(st){
+    return '<button type="button" class="'+(st.id===DB.cur?'on':'')+'" data-act="store-sel" data-v="'+esc(st.id)+'">'+esc(st.id===DB.cur?S.name:st.name)+'</button>';
+  }).join('');
+  $('#storeNewBtn').hidden=!ed; if(!ed) $('#newBox').hidden=true;
+  $('#layoutCard').hidden=!ed;
+  if(!ed) return;
+  if(!draft) openDraft();
+  $('#storeName').value=S.name;
+  $('#wallEd').innerHTML=draft.map(wedHtml).join('');
+  $('#storeDelBtn').hidden=DB.stores.length<2;
+}
+function layoutMsg(m){var el=$('#layoutMsg');el.textContent=m||'';el.hidden=!m}
+function saveLayout(){
+  layoutMsg('');
+  var name=$('#storeName').value.trim()||S.name||'Loja',out=[],seen={},i,j;
+  if(!draft.length){layoutMsg('Deixe pelo menos uma parede.');return}
+  for(i=0;i<draft.length;i++){
+    var w=draft[i],id=String(w.id||'').toUpperCase().replace(/\s+/g,''),cols=Math.floor(+w.cols),rows=Math.floor(+w.rows);
+    if(!/^[A-Z0-9]+(-[A-Z0-9]+)*$/.test(id)){layoutMsg('Parede '+(i+1)+': o código só pode ter letras, números e traço (ex.: C2-A).');return}
+    if(seen[id]){layoutMsg('O código '+id+' está repetido.');return}
+    seen[id]=1;
+    if(!(cols>=1&&cols<=26)){layoutMsg('Parede '+id+': use de 1 a 26 letras.');return}
+    if(!(rows>=1&&rows<=99)){layoutMsg('Parede '+id+': use de 1 a 99 números.');return}
+    out.push({orig:w.orig,id:id,name:String(w.name||'').trim()||id,cols:cols,rows:rows,cn:String(w.cn||'').trim()||'Letra',rn:String(w.rn||'').trim()||'Número',one:!!w.one});
+  }
+  for(i=0;i<out.length;i++) for(j=0;j<out.length;j++) if(i!==j&&out[j].id.indexOf(out[i].id+'-')===0){layoutMsg('Os códigos '+out[i].id+' e '+out[j].id+' se confundem. Mude um deles (ex.: troque o início).');return}
+  var map={};out.forEach(function(w){if(w.orig) map[w.orig]=w});
+  var bad=0,badW={};
+  S.items.forEach(function(it){
+    var nw=map[it.w];
+    if(!nw||LET.indexOf(it.l)>=nw.cols||it.n>nw.rows){bad++;badW[it.w]=1}
+  });
+  if(bad){layoutMsg(bad+(bad===1?' produto ficaria':' produtos ficariam')+' fora do novo layout (parede '+Object.keys(badW).join(', ')+'). Remova esses produtos antes de apagar ou reduzir a parede.');return}
+  var old=S.items,nl=out.map(function(w){return {id:w.id,name:w.name,cols:w.cols,rows:w.rows,cn:w.cn,rn:w.rn,one:w.one}});
+  applyLayout(nl); S.walls=nl; S.name=name;
+  S.items=old.map(function(i){var nw=map[i.w];return mkItem(fmtPos(nw.id,i.l,i.n),i.ean,i.code,i.desc,i.ts)}).filter(Boolean);
+  cur={wall:null,letter:null,num:null}; lastId=null; $('#last').hidden=true;
+  touch(); draft=null; renderAll(); renderLoja(); toast('Layout salvo.');
+}
+function switchStore(id){
+  if(id===DB.cur) return;
+  stash(); activate(id); persist(); draft=null; $('#last').hidden=true; $('#dup').hidden=true;
+  renderAll(); toast('Loja: '+S.name);
+}
+function createStore(){
+  var nm=$('#newName').value.trim(); if(!nm){toast('Escreva o nome da loja.');return}
+  stash();
+  var st={id:newId(),name:nm,walls:cloneWalls(S.walls),items:[],changed:Date.now(),saved:Date.now(),folha:[]};
+  DB.stores.push(st); activate(st.id); persist(); draft=null;
+  $('#newName').value='';$('#newBox').hidden=true; renderAll(); toast('Loja criada. Ajuste o layout e salve.');
+}
+function deleteStore(){
+  if(DB.stores.length<2) return;
+  var id=DB.cur; DB.stores=DB.stores.filter(function(s){return s.id!==id});
+  activate(DB.stores[0].id); persist(); draft=null; renderAll(); toast('Loja excluída.');
+}
+
+/* ---- etiquetas (Code 128, conjunto B) ---- */
+function c128svg(text){
+  var codes=[104],i,sum=104;
+  for(i=0;i<text.length;i++){var c=text.charCodeAt(i)-32; if(c<0||c>94) return ''; codes.push(c)}
+  for(i=1;i<codes.length;i++) sum+=i*codes[i];
+  codes.push(sum%103); codes.push(106);
+  var pat=codes.map(function(c){return C128P[c]}).join(''),x=0,rects='';
+  for(i=0;i<pat.length;i++){var w=+pat[i]; if(i%2===0) rects+='<rect x="'+x+'" y="0" width="'+w+'" height="1"/>'; x+=w}
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+x+' 1" preserveAspectRatio="none" style="width:'+(x*0.4).toFixed(2)+'mm" fill="#000" shape-rendering="crispEdges">'+rects+'</svg>';
+}
+function labelsHtml(){
+  var h='';
+  WALLS.forEach(function(w){
+    h+='<h3 class="wh">'+esc(w.name)+'</h3>';
+    for(var c=0;c<w.cols;c++) for(var r=1;r<=w.rows;r++){
+      var a=fmtPos(w.id,LET[c],r);
+      h+='<div class="lbl">'+c128svg(a)+'<div class="t">'+esc(a)+'</div></div>';
+    }
+  });
+  return h;
+}
+
 /* ---- eventos ---- */
 function armed(t,label,fn){
   if(t.dataset.armed){delete t.dataset.armed;t.classList.remove('armed');fn();return}
@@ -1278,6 +1509,19 @@ document.addEventListener('click',function(e){
     case 'folha-learn': {
       var k=0;S.folha.forEach(function(f){if(f.desc&&S.cat[f.code]!==f.desc){S.cat[f.code]=f.desc;k++}});
       touch();renderFolha();toast(k+(k===1?' descrição guardada.':' descrições guardadas.'));break}
+    case 'store-sel': switchStore(t.dataset.v); break;
+    case 'store-new': $('#newBox').hidden=!$('#newBox').hidden; if(!$('#newBox').hidden) $('#newName').focus(); break;
+    case 'store-create': createStore(); break;
+    case 'store-del': armed(t,'Toque de novo para excluir',deleteStore); break;
+    case 'wall-add': {
+      var n=1;while(draft.some(function(w){return String(w.id).toUpperCase()==='P'+n})) n++;
+      draft.push({orig:null,id:'P'+n,name:'Parede '+(draft.length+1),cols:12,rows:6,cn:'Estante',rn:'Prateleira',one:false});
+      renderLoja();layoutMsg('');break}
+    case 'wall-rm': {var wi=+t.closest('[data-wi]').dataset.wi;draft.splice(wi,1);renderLoja();break}
+    case 'layout-save': saveLayout(); break;
+    case 'labels': $('#pgrid').innerHTML=labelsHtml(); $('#printSheet').hidden=false; $('#printSheet').scrollTop=0; break;
+    case 'print-go': try{window.print()}catch(e){toast('Não consegui abrir a impressão.')} break;
+    case 'print-close': $('#printSheet').hidden=true; break;
     case 'save-xlsx': saveXlsx(); break;
     case 'share-xlsx': shareXlsx(); break;
     case 'open-xlsx': $('#planFile').click(); break;
@@ -1286,7 +1530,7 @@ document.addEventListener('click',function(e){
     case 'mode':
       S.mode=t.dataset.v; persist(); applyMode(); renderAll(); break;
     case 'wipe':
-      armed(t,'Toque de novo para apagar tudo',function(){S.items=[];S.cat={};S.folha=[];S.changed=Date.now();reindex();persist();lastId=null;$('#last').hidden=true;renderAll();toast('Tudo apagado.')});
+      armed(t,'Toque de novo para apagar',function(){S.items=[];S.folha=[];S.changed=Date.now();reindex();persist();lastId=null;$('#last').hidden=true;renderAll();toast('Tudo apagado.')});
       break;
   }
 });
@@ -1302,6 +1546,12 @@ document.addEventListener('change',function(e){
     var row=t.closest('[data-id]'),it2=row?itemById(row.dataset.id):null; if(!it2) return;
     it2.desc=t.value.trim(); learnDesc(it2.code,it2.desc); touch(); renderStats();
   }
+});
+document.addEventListener('input',function(e){
+  var t=e.target,f=t.dataset&&t.dataset.f,row=t.closest&&t.closest('[data-wi]');
+  if(!f||!row||!draft) return;
+  var w=draft[+row.dataset.wi]; if(!w) return;
+  w[f]=(t.type==='checkbox')?t.checked:t.value;
 });
 $('#codeInput').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();handleCode(this.value);this.value=''}});
 $('#q').addEventListener('input',renderFind);
@@ -1324,6 +1574,7 @@ function renderAll(){
   if(tab==='find') renderFind();
   if(tab==='folha') renderFolha();
   if(tab==='plan') renderPlan();
+  if(tab==='loja') renderLoja();
 }
 
 /* ---- início ---- */
@@ -1332,7 +1583,7 @@ applyMode();
 if(!isEdit()) go('find');
 renderAll();
 if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist()}catch(e){}}
-window.__estoque={S:S,handleCode:handleCode,parseFolhaText:parseFolhaText,rowsToData:rowsToData};
+window.__estoque={S:S,DB:DB,handleCode:handleCode,parseFolhaText:parseFolhaText,rowsToData:rowsToData,labelsHtml:labelsHtml};
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){try{navigator.serviceWorker.register('sw.js').catch(function(){})}catch(e){}}
 })();
 </script>
