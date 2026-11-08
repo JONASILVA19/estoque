@@ -381,6 +381,7 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
             <button type="button" data-act="mode" data-v="consulta">Consulta</button>
           </div>
           <p class="hint" id="modeHint"></p>
+          <p class="hint" id="appVer"></p>
           <div id="dangerCard"><button class="btn danger" type="button" data-act="wipe" id="wipeBtn">Apagar os produtos desta loja</button></div>
         </div>
       </details>
@@ -825,6 +826,7 @@ var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelect
 /* ---- estrutura do estoque ----
    Cada parede é uma grade: letras no topo (estantes), números na lateral (prateleiras).
    Corredores: 12 estantes (A-L) x 6 prateleiras. Paredão: 3 prateleiras x 6 = 18 letras (A-R) x 13 números. */
+var APP_VERSION='11';
 var LET='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 var DEFAULT_WALLS=[
   {id:'C1-B',name:'Corredor 1 · Lado B',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
@@ -1442,6 +1444,7 @@ function renderPlan(){
     ?'Edição: você adiciona, corrige e remove produtos. Use este modo no aparelho de quem cadastra.'
     :'Consulta: só busca. Use este modo nos aparelhos dos atendentes: abra a planilha enviada e pesquise.';
   $('#dangerCard').hidden=!isEdit();
+  $('#appVer').textContent='Versão do app: '+APP_VERSION;
 }
 function headerIdx(rows){
   for(var r=0;r<Math.min(rows.length,12);r++){
@@ -2018,7 +2021,15 @@ if(!isEdit()) go('find');
 renderAll();
 if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist()}catch(e){}}
 window.__estoque={curConf:curConf,mergeReads:mergeReads,applyRev:applyRev,revFromText:revFromText,getRev:function(){return rev},S:S,DB:DB,handleCode:handleCode,parseFolhaText:parseFolhaText,rowsToData:rowsToData,labelsHtml:labelsHtml};
-if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){try{navigator.serviceWorker.register('sw.js').catch(function(){})}catch(e){}}
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
+  try{
+    var hadCtl=!!navigator.serviceWorker.controller,reloaded=false;
+    navigator.serviceWorker.addEventListener('controllerchange',function(){if(hadCtl&&!reloaded){reloaded=true;location.reload()}});
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+      document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible') try{reg.update()}catch(e){}});
+    }).catch(function(){});
+  }catch(e){}
+}
 })();
 </script>
 </body>
