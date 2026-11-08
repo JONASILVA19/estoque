@@ -421,7 +421,10 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
   <video id="vid" playsinline muted></video>
   <div class="top2">
     <div><div class="poscode mono" id="scanPos">—</div><div id="scanSub" style="font-size:13px;opacity:.85"></div></div>
-    <button class="btn" type="button" data-act="scan-close">Fechar</button>
+    <div style="display:grid;gap:8px;justify-items:end">
+      <button class="btn" type="button" data-act="scan-close">Fechar</button>
+      <button class="btn" type="button" data-act="torch" id="torchBtn" hidden>Lanterna</button>
+    </div>
   </div>
   <div class="guide"></div>
   <div class="bot">
@@ -430,6 +433,7 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
     <ul class="blist" id="batchList" hidden></ul>
     <button class="btn beam big" type="button" data-act="batch-ok" id="batchOk" hidden>Confirmar</button>
     <button class="btn" type="button" data-act="scan-photo">Tirar foto ou escolher imagem</button>
+    <p id="scanEng" style="margin:0;font-size:12px;opacity:.6"></p>
   </div>
 </div>
 
@@ -840,7 +844,7 @@ var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelect
 /* ---- estrutura do estoque ----
    Cada parede é uma grade: letras no topo (estantes), números na lateral (prateleiras).
    Corredores: 12 estantes (A-L) x 6 prateleiras. Paredão: 3 prateleiras x 6 = 18 letras (A-R) x 13 números. */
-var APP_VERSION='12';
+var APP_VERSION='13';
 var LET='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 var DEFAULT_WALLS=[
   {id:'C1-B',name:'Corredor 1 · Lado B',cols:12,rows:6,cn:'Estante',rn:'Prateleira'},
@@ -1748,9 +1752,10 @@ function gray(cv){
 function newCanvas(w,h){var c=document.createElement('canvas');c.width=w;c.height=h;return c}
 function onScanned(text){
   var now=Date.now();
-  if(text===sc.last&&now-sc.lastT<2500) return;
+  if(text===sc.last&&now-sc.lastT<1500) return;
   sc.last=text;sc.lastT=now;
-  if(navigator.vibrate) try{navigator.vibrate(60)}catch(e){}
+  beep();
+  if(navigator.vibrate) try{navigator.vibrate(40)}catch(e){}
   $('#scanMsg').textContent='Lido: '+text;
   if(scanMode==='add') addScan(text);
   else if(scanMode==='find'){
@@ -1770,41 +1775,77 @@ function onScanned(text){
 }
 function liveCamOk(){return !!(window.isSecureContext&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)}
 function openCam(){
+  beepInit();
   if(scanMode==='add'){batch=[];cur={wall:null,letter:null,num:null};pendingEan=null;$('#dup').hidden=true;renderPicker()}
   startScanner();
   if(!liveCamOk()){toast('Câmera ao vivo indisponível aqui: tire uma foto do código ou escolha uma imagem.');$('#photo').click()}
 }
+var nativeDet=null,nativeChecked=false;
+async function getNativeDet(){
+  if(nativeChecked) return nativeDet;
+  nativeChecked=true;
+  if(!('BarcodeDetector' in window)) return null;
+  try{
+    var want=['ean_13','ean_8','upc_a','upc_e','code_128'],fm=want;
+    if(window.BarcodeDetector.getSupportedFormats){var sup=await window.BarcodeDetector.getSupportedFormats();fm=want.filter(function(f){return sup.indexOf(f)>=0})}
+    if(fm.length) nativeDet=new window.BarcodeDetector({formats:fm});
+  }catch(e){nativeDet=null}
+  return nativeDet;
+}
+var actx=null;
+function beepInit(){try{if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended') actx.resume()}catch(e){actx=null}}
+function beep(){
+  try{
+    if(!actx) return;
+    var o=actx.createOscillator(),g=actx.createGain();
+    o.type='square';o.frequency.value=1900;g.gain.value=0.06;
+    o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.07);
+  }catch(e){}
+}
 async function startScanner(){
   $('#scan').hidden=false;renderCur();renderBatch();
+  $('#torchBtn').hidden=true;
   $('#scanMsg').textContent='Aponte para o código de barras';
   if(!liveCamOk()){$('#scanMsg').textContent='Use “Tirar foto ou escolher imagem”.';return}
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('#scanMsg').textContent='Câmera ao vivo indisponível aqui. Use “Tirar foto ou escolher imagem”.';return}
   try{
-    sc.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    sc.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
     var v=$('#vid');v.srcObject=sc.stream;await v.play();
-  }catch(e){$('#scanMsg').textContent='Não consegui abrir a câmera. Permita o acesso ou use “Tirar foto em vez disso”.';return}
-  sc.det=null;
-  if('BarcodeDetector' in window){try{sc.det=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','code_128']})}catch(e){sc.det=null}}
+  }catch(e){$('#scanMsg').textContent='Não consegui abrir a câmera. Permita o acesso ou use “Tirar foto ou escolher imagem”.';return}
+  try{
+    var tr=sc.stream.getVideoTracks()[0],cap=tr.getCapabilities?tr.getCapabilities():{};
+    if(cap.focusMode&&cap.focusMode.indexOf('continuous')>=0) tr.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(function(){});
+    sc.torch=false; $('#torchBtn').hidden=!cap.torch; $('#torchBtn').textContent='Lanterna';
+  }catch(e){}
+  sc.det=await getNativeDet();
+  $('#scanEng').textContent=sc.det?'Leitor rápido do Android':'Leitor do app';
   sc.run=true;sc.last='';scanLoop(0);
+}
+function toggleTorch(){
+  try{var tr=sc.stream&&sc.stream.getVideoTracks()[0];if(!tr) return;sc.torch=!sc.torch;
+    tr.applyConstraints({advanced:[{torch:sc.torch}]}).catch(function(){});$('#torchBtn').textContent=sc.torch?'Desligar lanterna':'Lanterna'}catch(e){}
 }
 async function scanLoop(n){
   if(!sc.run) return;
-  var v=$('#vid');
+  var v=$('#vid'),t0=Date.now();
   if(v.readyState>=2&&v.videoWidth){
     try{
       var text=null;
-      if(sc.det){var r=await sc.det.detect(v);if(r&&r[0]&&r[0].rawValue) text=r[0].rawValue}
-      if(!text){
-        var w=Math.min(v.videoWidth,960),h=Math.round(v.videoHeight*w/v.videoWidth);
+      if(sc.det){
+        var r=await sc.det.detect(v);
+        if(r&&r.length) text=r[0].rawValue;
+      } else {
+        /* leitor do app: só o centro da imagem (onde fica a moldura), em duas escalas */
+        var vw=v.videoWidth,vh=v.videoHeight,cw=Math.round(vw*0.85),ch=Math.round(vh*0.5);
+        var w=Math.min(cw,900),h=Math.round(ch*w/cw);
         if(!sc.cv||sc.cv.width!==w||sc.cv.height!==h) sc.cv=newCanvas(w,h);
-        sc.cv.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,w,h);
-        var res=decodeGray(gray(sc.cv),w,h,{up:(n%3===2)?2:1});
+        sc.cv.getContext('2d',{willReadFrequently:true}).drawImage(v,(vw-cw)/2,(vh-ch)/2,cw,ch,0,0,w,h);
+        var g=gray(sc.cv),res=decodeGray(g,w,h,{up:1})||decodeGray(g,w,h,{up:2});
         if(res) text=res.text;
       }
       if(text&&sc.run) onScanned(text);
     }catch(e){}
   }
-  setTimeout(function(){scanLoop(n+1)},sc.det?120:160);
+  if(sc.run) setTimeout(function(){scanLoop(n+1)},Math.max(15,(sc.det?50:70)-(Date.now()-t0)));
 }
 function closeScanner(){
   sc.run=false;
@@ -1812,9 +1853,8 @@ function closeScanner(){
   $('#vid').srcObject=null;$('#scan').hidden=true;
 }
 async function decodeCanvas(cv){
-  if('BarcodeDetector' in window){
-    try{var d=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','code_128']});var r=await d.detect(cv);if(r&&r[0]&&r[0].rawValue) return r[0].rawValue}catch(e){}
-  }
+  var d=await getNativeDet();
+  if(d){try{var r=await d.detect(cv);if(r&&r[0]&&r[0].rawValue) return r[0].rawValue}catch(e){}}
   var g=gray(cv),res=decodeGray(g,cv.width,cv.height,{up:1})||decodeGray(g,cv.width,cv.height,{up:2});
   return res?res.text:null;
 }
@@ -1960,6 +2000,7 @@ document.addEventListener('click',function(e){
       else closeScanner();
       break;
     case 'batch-ok': commitBatch(); break;
+    case 'torch': toggleTorch(); break;
     case 'batch-rm': batch.splice(+t.dataset.i,1); renderBatch(); break;
     case 'use-code': {var inp=$('#codeInput'); handleCode(inp.value); inp.value=''; break}
     case 'wall':
