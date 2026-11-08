@@ -203,7 +203,7 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
       </div>
 
       <div class="card" id="stepPos">
-        <h2 class="lab">1 · Posição</h2>
+        <h2 class="lab">Posição</h2>
         <span class="poscode mono" id="posCode">—</span>
         <div class="parts" hidden>
           <div class="part" id="partWall"><small>Parede</small><b>—</b></div>
@@ -212,32 +212,10 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
         </div>
         <p class="hint" id="posLabel"></p>
         <p class="hint" id="posNote" hidden></p>
-        <button class="btn big" type="button" data-act="scan-add" id="scanPosBtn">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.800-7 11-7 11z"/><circle cx="12" cy="10" r="2.500"/></svg>
-          <span>Ler posição</span>
-        </button>
-        <details class="manual" id="manual">
-          <summary>Escolher a posição à mão</summary>
-          <div class="stack">
-            <div class="seg" id="segWall"></div>
-            <div class="stack" id="letWrap" hidden><span class="hint">Letra (etiqueta do topo)</span><div class="divs" id="lets"></div></div>
-            <div class="stack" id="numWrap" hidden><span class="hint">Número (etiqueta da lateral)</span><div class="divs" id="nums"></div></div>
-          </div>
-        </details>
-      </div>
-
-      <div class="card" id="stepProd">
-        <h2 class="lab">2 · Produto</h2>
         <button class="btn beam big" type="button" data-act="scan-add" id="scanAddBtn">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M18 6v12M20 6v12"/></svg>
-          <span>Ler produto</span>
+          <span>Adicionar produto à posição</span>
         </button>
-        <label class="field"><span class="sr">Código</span>
-          <span class="row2">
-            <input class="in mono" id="codeInput" type="text" autocomplete="off" autocapitalize="characters" placeholder="Posição ou EAN">
-            <button class="btn" type="button" data-act="use-code">OK</button>
-          </span>
-        </label>
         <div class="notice" id="dup" hidden>
           <p id="dupText"></p>
           <p><strong id="dupAsk"></strong></p>
@@ -246,6 +224,20 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
             <button class="btn" type="button" data-act="dup-no">Cancelar</button>
           </div>
         </div>
+        <details class="manual" id="manual">
+          <summary>Digitar ou escolher à mão</summary>
+          <div class="stack">
+            <label class="field"><span class="sr">Código</span>
+              <span class="row2">
+                <input class="in mono" id="codeInput" type="text" autocomplete="off" autocapitalize="characters" placeholder="Posição ou EAN">
+                <button class="btn" type="button" data-act="use-code">OK</button>
+              </span>
+            </label>
+            <div class="seg" id="segWall"></div>
+            <div class="stack" id="letWrap" hidden><span class="hint">Letra (etiqueta do topo)</span><div class="divs" id="lets"></div></div>
+            <div class="stack" id="numWrap" hidden><span class="hint">Número (etiqueta da lateral)</span><div class="divs" id="nums"></div></div>
+          </div>
+        </details>
       </div>
 
       <div class="card" id="last" hidden>
@@ -1007,13 +999,13 @@ function renderCur(){
   setPart('partNum',cur.num?String(cur.num):'');
   var lab;
   if(p) lab=posLabel(p);
-  else if(!cur.wall) lab='Leia a etiqueta da posição.';
+  else if(!cur.wall) lab='Toque no botão, leia a etiqueta da posição e depois os produtos.';
   else if(!cur.letter) lab=wallName(cur.wall)+'. Falta a letra (etiqueta do topo).';
   else lab=wallName(cur.wall)+'. Falta o número (etiqueta da lateral).';
   $('#posLabel').textContent=lab; $('#scanSub').textContent=p?'Posição ok. Leia os produtos, um por vez.':lab;
   $('#prodCard').hidden=!pendingProd;
   if(pendingProd){$('#prodDesc').textContent=pendingProd.code+' · '+(pendingProd.desc||S.cat[pendingProd.code]||'(sem descrição)');$('#prodPut').disabled=!p}
-  $('#scanPosBtn').classList.toggle('beam',!p); $('#scanAddBtn').classList.toggle('beam',!!p);
+
   var here=p?(byPos.get(p)||[]):[];
   $('#posNote').textContent=p?(here.length?'Já tem '+here.length+(here.length===1?' produto':' produtos')+' nesta posição.':'Posição vazia.'):'';
 }
