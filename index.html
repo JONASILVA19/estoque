@@ -232,7 +232,6 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M18 6v12M20 6v12"/></svg>
           <span>Ler produto</span>
         </button>
-        <button class="btn" type="button" data-act="photo-add">Tirar uma foto do código</button>
         <label class="field"><span class="sr">Código</span>
           <span class="row2">
             <input class="in mono" id="codeInput" type="text" autocomplete="off" autocapitalize="characters" placeholder="Posição ou EAN">
@@ -269,10 +268,7 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
         <label class="field"><span class="sr">Buscar</span>
           <input class="in" id="q" type="search" autocomplete="off" placeholder="Buscar: descrição, código, EAN ou posição">
         </label>
-        <div class="row2e">
-          <button class="btn" type="button" data-act="scan-find">Ler com a câmera</button>
-          <button class="btn" type="button" data-act="photo-find">Foto do código</button>
-        </div>
+        <button class="btn" type="button" data-act="scan-find">Ler código de barras</button>
       </div>
       <p class="lab" id="resLabel"></p>
       <ul class="list" id="results"></ul>
@@ -294,20 +290,19 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg>
           <span>Ler folha pela foto</span>
         </button>
-        <div id="folhaRow" class="stack">
-          <label class="field"><span class="sr">Código do item</span>
-            <input class="in mono code" id="folhaIn" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="00000">
-          </label>
-          <label class="field" id="folhaQtyWrap"><span class="sr">Quantidade na folha</span>
-            <input class="in" id="folhaQty" type="number" inputmode="numeric" min="1" placeholder="Quantidade na folha (padrão 1)">
-          </label>
-        </div>
-        <button class="btn" type="button" data-act="scan-folha">Ler com a câmera</button>
-        <details class="manual">
-          <summary>Colar a lista inteira</summary>
+        <details class="manual" id="manualAdd" hidden>
+          <summary>Adicionar item manualmente</summary>
           <div class="stack">
-            <textarea class="in" id="folhaPaste" placeholder="LN-6-39 50010 2 INTENTION FOR MAN DES BDY SPR&#10;LN-5-39 52037 1 NEO DERMO PRO AGE CR ANTIS FAC"></textarea>
-            <button class="btn" type="button" data-act="folha-paste">Adicionar à lista</button>
+            <div id="folhaRow" class="stack">
+              <label class="field"><span class="sr">Código do item</span>
+                <input class="in mono code" id="folhaIn" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="00000">
+              </label>
+              <label class="field" id="folhaQtyWrap"><span class="sr">Quantidade na folha</span>
+                <input class="in" id="folhaQty" type="number" inputmode="numeric" min="1" placeholder="Quantidade (padrão 1)">
+              </label>
+            </div>
+            <textarea class="in" id="folhaPaste" placeholder="Ou cole a lista (ex.: texto copiado pelo Google Lens)"></textarea>
+            <button class="btn" type="button" data-act="folha-paste">Adicionar lista colada</button>
           </div>
         </details>
       </div>
@@ -427,12 +422,12 @@ details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex
   <div class="guide"></div>
   <div class="bot">
     <p id="scanMsg" style="margin:0">Aponte para o código de barras</p>
-    <button class="btn" type="button" data-act="scan-photo">Tirar foto em vez disso</button>
+    <button class="btn" type="button" data-act="scan-photo">Tirar foto ou escolher imagem</button>
   </div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-<input type="file" id="photo" accept="image/*" capture="environment" hidden>
+<input type="file" id="photo" accept="image/*" hidden>
 <input type="file" id="sheetFile" accept="image/*" hidden>
 <input type="file" id="catFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
 <input type="file" id="planFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
@@ -1278,7 +1273,8 @@ function scoreParse(r){
   return (r.total&&sum===r.total&&!bad?1000:0)+r.length*10-bad*3;
 }
 async function ocrSheet(file){
-  showRev([],'Preparando a foto…');$('#revCard').scrollIntoView({block:'start'});
+  var tc=curConf(); if(tc){tc.tried=true;persist()}
+  showRev([],'Preparando a foto…');$('#manualAdd').hidden=false;$('#revCard').scrollIntoView({block:'start'});
   try{await loadTess()}catch(e){showRev([],'Para ler a foto da folha é preciso internet. Conecte e tente de novo. (Você ainda pode digitar ou colar os itens.)');return}
   var wk,reads=[],targets=[2800,3400];
   try{
@@ -1317,6 +1313,7 @@ function renderFolha(){
   var c=curConf();
   $('#confListCard').hidden=!!c; $('#confHead').hidden=!c; $('#confBar').hidden=!c; $('#folhaList').hidden=!c;
   $('#folhaAdd').hidden=!c||S.fdone;
+  if(c) $('#manualAdd').hidden=!(c.tried||S.folha.length||rev);
   if(!c){rev=null;renderRev();renderConfList();return}
   var d=new Date(c.created);
   if(document.activeElement!==$('#confName')) $('#confName').value=c.name||(c.pedido?'Pedido '+c.pedido:'');
@@ -1345,11 +1342,12 @@ function renderConf(){
   var host=$('#folhaList'),list=S.folha,c=confCounts(),done=S.fdone,edit=isEdit();
   $('#confLine').innerHTML=list.length
     ?('<span>'+list.length+(list.length===1?' item':' itens')+'</span><span class="f">'+c.ok+' corretos</span>'+(c.falta?'<span class="m">'+c.falta+' com falta</span>':'')+(c.sobra?'<span class="m">'+c.sobra+' com sobra</span>':'')+(c.pend?'<span>'+c.pend+' a conferir</span>':''))
-    :'<span>Adicione os itens da folha acima.</span>';
+    :'';
+  $('#confBar').hidden=!list.length;
   $('#confFinish').hidden=done||!list.length;
   $('#confDoneBtns').hidden=!done;
   $('#confClear').hidden=done||!list.length;
-  if(!list.length){host.innerHTML='<li class="empty">Digite o código de cada item da folha (com a quantidade), leia o código de barras ou cole a lista.</li>';return}
+  if(!list.length){host.innerHTML='';return}
   if(!done){
     host.innerHTML=list.map(function(e,idx){
       var d=folhaDesc(e);
@@ -1702,13 +1700,13 @@ function onScanned(text){
 function liveCamOk(){return !!(window.isSecureContext&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)}
 function openCam(){
   if(liveCamOk()){startScanner();return}
-  toast('A câmera ao vivo só funciona com o app em https. Abrindo a câmera do celular: tire uma foto do código.');
+  toast('Câmera ao vivo indisponível aqui: tire uma foto do código ou escolha uma imagem.');
   $('#photo').click();
 }
 async function startScanner(){
   $('#scan').hidden=false;renderCur();
   $('#scanMsg').textContent='Aponte para o código de barras';
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('#scanMsg').textContent='Câmera ao vivo indisponível aqui. Use “Tirar foto em vez disso”.';return}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('#scanMsg').textContent='Câmera ao vivo indisponível aqui. Use “Tirar foto ou escolher imagem”.';return}
   try{
     sc.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
     var v=$('#vid');v.srcObject=sc.stream;await v.play();
@@ -1884,9 +1882,6 @@ document.addEventListener('click',function(e){
     case 'tab': go(t.dataset.tab); break;
     case 'scan-add': scanMode='add'; openCam(); break;
     case 'scan-find': scanMode='find'; openCam(); break;
-    case 'scan-folha': scanMode='folha'; openCam(); break;
-    case 'photo-add': scanMode='add'; $('#photo').click(); break;
-    case 'photo-find': scanMode='find'; $('#photo').click(); break;
     case 'scan-photo': $('#photo').click(); break;
     case 'scan-close': closeScanner(); break;
     case 'use-code': {var inp=$('#codeInput'); handleCode(inp.value); inp.value=''; break}
