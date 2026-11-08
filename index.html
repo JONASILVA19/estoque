@@ -156,6 +156,14 @@ button.chip{cursor:pointer}
   .pgrid .wh{break-before:page;margin:0 0 3mm}
   .pgrid .wh:first-child{break-before:auto}
 }
+
+.tag{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.tag.ok{background:var(--ok-bg);color:var(--ok)}
+.tag.falta{background:#4A2323;color:var(--danger)}
+.tag.sobra{background:var(--warn-bg);color:var(--warn-ink)}
+details.more>summary{font-weight:600;cursor:pointer;min-height:36px;display:flex;align-items:center;color:var(--muted)}
+#storeActs{grid-template-columns:1fr 1fr}
+#storeActs #storeNewBtn{grid-column:1/-1}
 </style>
 </head>
 <body>
@@ -171,6 +179,16 @@ button.chip{cursor:pointer}
   <main>
     <!-- ADICIONAR -->
     <section id="tab-add" class="stack">
+      <div class="card" id="prodCard" hidden>
+        <h2 class="lab">Produto a guardar</h2>
+        <div class="fdesc" id="prodDesc"></div>
+        <p class="hint">Leia a posição abaixo e toque em Guardar aqui.</p>
+        <div class="row2e">
+          <button class="btn beam" type="button" data-act="conf-put" id="prodPut">Guardar aqui</button>
+          <button class="btn" type="button" data-act="conf-cancel">Cancelar</button>
+        </div>
+      </div>
+
       <div class="card" id="stepPos">
         <h2 class="lab">1 · Posição</h2>
         <span class="poscode mono" id="posCode">—</span>
@@ -249,11 +267,19 @@ button.chip{cursor:pointer}
 
     <!-- FOLHA -->
     <section id="tab-folha" class="stack" hidden>
-      <div class="card">
-        
-        <label class="field"><span class="sr">Código do item</span>
-          <input class="in mono code" id="folhaIn" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="00000">
-        </label>
+      <div class="seg" id="folhaMode">
+        <button type="button" data-act="folha-mode" data-v="pos">Posições</button>
+        <button type="button" data-act="folha-mode" data-v="conf">Conferência</button>
+      </div>
+      <div class="card" id="folhaAdd">
+        <div id="folhaRow" class="stack">
+          <label class="field"><span class="sr">Código do item</span>
+            <input class="in mono code" id="folhaIn" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="00000">
+          </label>
+          <label class="field" id="folhaQtyWrap" hidden><span class="sr">Quantidade na folha</span>
+            <input class="in" id="folhaQty" type="number" inputmode="numeric" min="1" placeholder="Quantidade na folha (padrão 1)">
+          </label>
+        </div>
         <button class="btn" type="button" data-act="scan-folha">Ler com a câmera</button>
         <details class="manual">
           <summary>Colar a lista inteira</summary>
@@ -270,6 +296,15 @@ button.chip{cursor:pointer}
           <button class="btn danger" type="button" data-act="folha-clear">Limpar lista</button>
         </div>
       </div>
+      <div class="card" id="confBar" hidden>
+        <div class="sumline" id="confLine"></div>
+        <button class="btn beam big" type="button" data-act="conf-finish" id="confFinish">Finalizar contagem</button>
+        <div class="row2e" id="confDoneBtns" hidden>
+          <button class="btn" type="button" data-act="conf-reopen">Voltar à contagem</button>
+          <button class="btn danger" type="button" data-act="conf-new">Nova conferência</button>
+        </div>
+        <button class="btn danger" type="button" data-act="folha-clear" id="confClear">Limpar lista</button>
+      </div>
       <ul class="list" id="folhaList"></ul>
     </section>
 
@@ -278,33 +313,43 @@ button.chip{cursor:pointer}
       <div class="card">
         <h2 class="lab">Loja</h2>
         <div class="seg" id="storeSeg"></div>
-        <button class="btn" type="button" data-act="store-new" id="storeNewBtn">Nova loja</button>
+        <div class="row2e" id="storeActs">
+          <button class="btn" type="button" data-act="layout-edit">Editar layout</button>
+          <button class="btn" type="button" data-act="labels">Etiquetas</button>
+          <button class="btn" type="button" data-act="store-new" id="storeNewBtn">Nova loja</button>
+        </div>
         <div class="stack" id="newBox" hidden>
           <label class="field"><span>Nome da nova loja</span><input class="in" id="newName" type="text" autocomplete="off" placeholder="Ex.: Loja Centro"></label>
           <button class="btn beam" type="button" data-act="store-create">Criar loja (começa com o layout desta)</button>
         </div>
       </div>
-      <div class="card" id="layoutCard">
+      <div class="card" id="layoutCard" hidden>
         <h2 class="lab">Layout desta loja</h2>
         <label class="field"><span>Nome da loja</span><input class="in" id="storeName" type="text" autocomplete="off"></label>
         <div class="stack" id="wallEd"></div>
         <button class="btn" type="button" data-act="wall-add">+ Adicionar parede</button>
         <p class="notice" id="layoutMsg" hidden></p>
         <button class="btn beam big" type="button" data-act="layout-save">Salvar layout</button>
-        <button class="btn" type="button" data-act="labels">Imprimir etiquetas</button>
-        <button class="btn danger" type="button" data-act="store-del" id="storeDelBtn">Excluir esta loja</button>
+        <div class="row2e">
+          <button class="btn" type="button" data-act="layout-close">Fechar</button>
+          <button class="btn danger" type="button" data-act="store-del" id="storeDelBtn">Excluir loja</button>
+        </div>
       </div>
     </section>
 
     <!-- PLANILHA -->
     <section id="tab-plan" class="stack" hidden>
+      <div class="card" id="feedCard">
+        <h2 class="lab">Banco de produtos</h2>
+        <div class="stat"><span>Produtos no catálogo</span><b class="mono" id="catCount">0</b></div>
+        <button class="btn beam big" type="button" data-act="feed-db">Alimentar banco de dados</button>
+      </div>
       <div class="card">
-        <h2 class="lab">Dados</h2>
-        <div id="planStats"></div>
+        <h2 class="lab">Estoque</h2>
         <p class="notice" id="planDirty" hidden>Há alterações que ainda não estão na planilha salva.</p>
-        <button class="btn beam big" type="button" data-act="save-xlsx">Salvar planilha (.xlsx)</button>
+        <button class="btn beam big" type="button" data-act="save-xlsx">Salvar planilha</button>
         <button class="btn" type="button" data-act="share-xlsx" id="shareBtn" hidden>Compartilhar planilha</button>
-        <button class="btn" type="button" data-act="open-xlsx">Abrir planilha (.xlsx ou .csv)</button>
+        <button class="btn" type="button" data-act="open-xlsx">Abrir planilha salva</button>
         <div class="notice" id="impBox" hidden>
           <p id="impText"></p>
           <div class="row2e" style="margin-top:10px">
@@ -313,18 +358,19 @@ button.chip{cursor:pointer}
           </div>
         </div>
       </div>
-      <div class="card">
-        <h2 class="lab">Modo do aparelho</h2>
-        <div class="seg" id="segMode">
-          <button type="button" data-act="mode" data-v="edicao">Edição</button>
-          <button type="button" data-act="mode" data-v="consulta">Consulta</button>
+      <details class="card more">
+        <summary>Mais opções</summary>
+        <div class="stack" style="margin-top:12px">
+          <div id="planStats"></div>
+          <h2 class="lab">Modo do aparelho</h2>
+          <div class="seg" id="segMode">
+            <button type="button" data-act="mode" data-v="edicao">Edição</button>
+            <button type="button" data-act="mode" data-v="consulta">Consulta</button>
+          </div>
+          <p class="hint" id="modeHint"></p>
+          <div id="dangerCard"><button class="btn danger" type="button" data-act="wipe" id="wipeBtn">Apagar os produtos desta loja</button></div>
         </div>
-        <p class="hint" id="modeHint"></p>
-      </div>
-      <div class="card" id="dangerCard">
-        <h2 class="lab">Apagar</h2>
-        <button class="btn danger" type="button" data-act="wipe" id="wipeBtn">Apagar os produtos desta loja</button>
-      </div>
+      </details>
     </section>
   </main>
 </div>
@@ -361,6 +407,7 @@ button.chip{cursor:pointer}
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <input type="file" id="photo" accept="image/*" capture="environment" hidden>
+<input type="file" id="catFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
 <input type="file" id="planFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
 
 <script>
@@ -832,7 +879,8 @@ function fmtDT(ts){if(!ts) return 'nunca';var d=new Date(ts);return pad2(d.getDa
 
 /* ---- dados ---- */
 var KEY='estoque_v2', KEY1='estoque_v1';
-var S={items:[],cat:{},changed:0,saved:0,mode:'edicao',folha:[],name:'',walls:[]};
+var S={items:[],cat:{},changed:0,saved:0,mode:'edicao',folha:[],fdone:false,name:'',walls:[]};
+var fmode='pos', pendingProd=null, layoutOpen=false;
 var DB={stores:[],cur:null};
 var byPos=new Map(), storageOk=true;
 function mkItem(pos,ean,code,desc,ts){
@@ -845,13 +893,13 @@ function newId(){return 's'+Date.now().toString(36)+Math.random().toString(36).s
 function curStore(){return DB.stores.filter(function(s){return s.id===DB.cur})[0]}
 function stash(){
   var st=curStore(); if(!st) return;
-  st.items=S.items.map(toRaw); st.changed=S.changed; st.saved=S.saved; st.folha=S.folha; st.walls=S.walls; st.name=S.name;
+  st.items=S.items.map(toRaw); st.changed=S.changed; st.saved=S.saved; st.folha=S.folha; st.fdone=S.fdone; st.walls=S.walls; st.name=S.name;
 }
 function activate(id){
   var st=DB.stores.filter(function(x){return x.id===id})[0]||DB.stores[0];
   DB.cur=st.id; S.name=st.name; S.walls=st.walls; applyLayout(S.walls);
   S.items=(st.items||[]).map(function(r){return mkItem(r[0],r[1],r[2],r[3],r[4])}).filter(Boolean);
-  S.changed=st.changed||0; S.saved=st.saved||0; S.folha=st.folha||[];
+  S.changed=st.changed||0; S.saved=st.saved||0; S.folha=st.folha||[]; S.fdone=!!st.fdone;
   cur={wall:null,letter:null,num:null}; pendingEan=null; lastId=null;
   reindex();
 }
@@ -870,7 +918,7 @@ function load(){
   var j=null,j1=null;
   try{j=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
   if(j&&j.stores&&j.stores.length){
-    DB.stores=j.stores.map(function(st){return {id:st.id||newId(),name:st.name||'Loja',walls:cloneWalls(st.walls&&st.walls.length?st.walls:DEFAULT_WALLS),items:st.items||[],changed:st.changed||0,saved:st.saved||0,folha:st.folha||[]}});
+    DB.stores=j.stores.map(function(st){return {id:st.id||newId(),name:st.name||'Loja',walls:cloneWalls(st.walls&&st.walls.length?st.walls:DEFAULT_WALLS),items:st.items||[],changed:st.changed||0,saved:st.saved||0,folha:st.folha||[],fdone:!!st.fdone}});
     S.cat=j.cat||{}; S.mode=j.mode==='consulta'?'consulta':'edicao';
     activate(j.cur);
   } else {
@@ -898,7 +946,7 @@ function go(t){
   if(t==='find') renderFind();
   if(t==='folha') renderFolha();
   if(t==='plan') renderPlan();
-  if(t==='loja'){draft=null;renderLoja()}
+  if(t==='loja'){draft=null;layoutOpen=false;renderLoja()}
   window.scrollTo(0,0);
 }
 
@@ -929,6 +977,8 @@ function renderCur(){
   else if(!cur.letter) lab=wallName(cur.wall)+'. Falta a letra (etiqueta do topo).';
   else lab=wallName(cur.wall)+'. Falta o número (etiqueta da lateral).';
   $('#posLabel').textContent=lab; $('#scanSub').textContent=p?'Posição ok. Leia os produtos, um por vez.':lab;
+  $('#prodCard').hidden=!pendingProd;
+  if(pendingProd){$('#prodDesc').textContent=pendingProd.code+' · '+(pendingProd.desc||S.cat[pendingProd.code]||'(sem descrição)');$('#prodPut').disabled=!p}
   $('#scanPosBtn').classList.toggle('beam',!p); $('#scanAddBtn').classList.toggle('beam',!!p);
   var here=p?(byPos.get(p)||[]):[];
   $('#posNote').textContent=p?(here.length?'Já tem '+here.length+(here.length===1?' produto':' produtos')+' nesta posição.':'Posição vazia.'):'';
@@ -976,7 +1026,7 @@ function renderFind(){
   list=list.slice(0,100);
   host.innerHTML=list.length?list.map(function(i){
     return '<li class="res" data-id="'+esc(i.id)+'">'
-      +(ed?'<input class="in" data-act="desc" value="'+esc(i.desc)+'" placeholder="(sem descrição)" aria-label="Descrição">':'<div class="fdesc">'+esc(i.desc||'(sem descrição)')+'</div>')
+      +(ed?'<input class="in" data-act="desc" value="'+esc(i.desc)+'" placeholder="(sem descrição)" aria-label="Descrição">':'<div class="fdesc">'+esc(i.desc||S.cat[i.code]||'(sem descrição)')+'</div>')
       +'<div class="r2"><span class="mono">'+esc(i.code)+'</span>'+(i.ean?'<span class="mono">EAN '+esc(i.ean)+'</span>':'')+'</div>'
       +'<div class="r3"><button type="button" class="chip" data-act="goto" data-pos="'+esc(i.pos)+'"><b>'+esc(i.pos)+'</b><span>'+esc(posLabel(i.pos))+'</span></button>'
       +(ed?'<button type="button" class="rm" data-act="rm">Remover</button>':'')+'</div></li>';
@@ -1016,6 +1066,12 @@ function parseFolhaText(text){
   return out;
 }
 function renderFolha(){
+  var conf=fmode==='conf';
+  $$('#folhaMode button').forEach(function(b){b.classList.toggle('on',b.dataset.v===fmode)});
+  $('#folhaQtyWrap').hidden=!conf; $('#folhaRow').className=conf?'stack':'stack';
+  $('#folhaAdd').hidden=conf&&S.fdone;
+  $('#confBar').hidden=!conf;
+  if(conf){$('#folhaSum').hidden=true;renderConf();return}
   var host=$('#folhaList'), edit=isEdit();
   var rows=S.folha.map(function(e,idx){
     var pos=S.items.filter(function(i){return i.code===e.code}).sort(function(a,b){return ikey(a)-ikey(b)});
@@ -1035,6 +1091,72 @@ function renderFolha(){
       +(r.pos.length?'<div class="chips">'+posChips(r.pos)+'</div>':'<p class="hint">Não guardado no estoque.</p>')
       +'<div class="r3"><span></span><button type="button" class="rm" data-act="folha-rm">Tirar da lista</button></div></li>';
   }).join(''):'<li class="empty">Digite os códigos da folha ou leia o código de barras de cada produto. O app mostra onde cada um está guardado.</li>';
+}
+
+
+/* ---- conferência ---- */
+function confCounts(){
+  var c={ok:0,falta:0,sobra:0,pend:0};
+  S.folha.forEach(function(e){c[e.st||'pend']++});
+  return c;
+}
+function stTag(e){
+  if(e.st==='ok') return '<span class="tag ok">Correto</span>';
+  if(e.st==='falta') return '<span class="tag falta">Falta '+(e.dif||1)+'</span>';
+  if(e.st==='sobra') return '<span class="tag sobra">Sobra '+(e.dif||1)+'</span>';
+  return '<span class="tag">Não conferido</span>';
+}
+function renderConf(){
+  var host=$('#folhaList'),list=S.folha,c=confCounts(),done=S.fdone,edit=isEdit();
+  $('#confLine').innerHTML=list.length
+    ?('<span>'+list.length+(list.length===1?' item':' itens')+'</span><span class="f">'+c.ok+' corretos</span>'+(c.falta?'<span class="m">'+c.falta+' com falta</span>':'')+(c.sobra?'<span class="m">'+c.sobra+' com sobra</span>':'')+(c.pend?'<span>'+c.pend+' a conferir</span>':''))
+    :'<span>Adicione os itens da folha acima.</span>';
+  $('#confFinish').hidden=done||!list.length;
+  $('#confDoneBtns').hidden=!done;
+  $('#confClear').hidden=done||!list.length;
+  if(!list.length){host.innerHTML='<li class="empty">Digite o código de cada item da folha (com a quantidade), leia o código de barras ou cole a lista.</li>';return}
+  if(!done){
+    host.innerHTML=list.map(function(e,idx){
+      var d=folhaDesc(e);
+      return '<li class="res" data-i="'+idx+'">'
+        +'<div class="r1"><span class="code">'+esc(e.code)+'</span><span class="qty">folha ×'+(e.qty||'?')+'</span></div>'
+        +'<div class="fdesc">'+esc(d||'(sem descrição)')+'</div>'
+        +'<div class="seg">'
+          +'<button type="button" class="'+(e.st==='ok'?'on':'')+'" data-act="conf-set" data-v="ok">Correto</button>'
+          +'<button type="button" class="'+(e.st==='falta'?'on':'')+'" data-act="conf-set" data-v="falta">Falta</button>'
+          +'<button type="button" class="'+(e.st==='sobra'?'on':'')+'" data-act="conf-set" data-v="sobra">Sobra</button>'
+        +'</div>'
+        +((e.st==='falta'||e.st==='sobra')?'<label class="field"><span>Quantas '+(e.st==='falta'?'faltam':'sobram')+'?</span><input class="in" type="number" inputmode="numeric" min="1" data-act="conf-dif" value="'+(e.dif||1)+'"></label>':'')
+        +'<div class="r3"><span></span><button type="button" class="rm" data-act="folha-rm">Tirar da lista</button></div></li>';
+    }).join('');
+    return;
+  }
+  var rows=list.map(function(e,idx){
+    var pos=S.items.filter(function(i){return i.code===e.code}).sort(function(a,b){return ikey(a)-ikey(b)});
+    return {e:e,idx:idx,pos:pos,key:pos.length?ikey(pos[0]):1e9+idx};
+  }).sort(function(a,b){return a.key-b.key});
+  host.innerHTML=rows.map(function(r){
+    var e=r.e;
+    return '<li class="res'+(r.pos.length?'':' miss')+'" data-i="'+r.idx+'">'
+      +'<div class="r1"><span class="code">'+esc(e.code)+'</span><span class="qty">folha ×'+(e.qty||'?')+'</span></div>'
+      +'<div class="fdesc">'+esc(folhaDesc(e)||'(sem descrição)')+'</div>'
+      +'<div>'+stTag(e)+'</div>'
+      +(r.pos.length?'<div class="chips">'+posChips(r.pos)+'</div>'
+        :'<p class="hint">Sem posição no estoque.</p>'+(edit?'<button type="button" class="btn" data-act="conf-store">Guardar numa posição</button>':''))
+      +'</li>';
+  }).join('');
+}
+function putPending(){
+  var pp=pendingProd,pos=curPos();
+  if(!pp) return;
+  if(!pos){toast('Leia primeiro a posição.');return}
+  var here=byPos.get(pos)||[];
+  if(here.some(function(i){return i.code===pp.code})){toast('Este produto já está em '+pos+'.');return}
+  if(WALL[cur.wall].one&&here.length){toast('Esta posição já tem um produto. Escolha outra.');return}
+  var it=mkItem(pos,'',pp.code,pp.desc||S.cat[pp.code]||'',Date.now());
+  S.items.push(it); if(it.desc) learnDesc(it.code,it.desc);
+  pendingProd=null; touch(); renderAll(); toast('Guardado em '+pos);
+  fmode='conf'; go('folha');
 }
 
 /* ---- planilha ---- */
@@ -1087,6 +1209,8 @@ function renderPlan(){
    +'<div class="stat"><span>Última alteração</span><b class="mono">'+fmtDT(S.changed)+'</b></div>'
    +'<div class="stat"><span>Última planilha salva</span><b class="mono">'+fmtDT(S.saved)+'</b></div>';
   $('#planDirty').hidden=!anyDirty();
+  $('#catCount').textContent=Object.keys(S.cat).length;
+  $('#feedCard').hidden=!isEdit();
   $('#shareBtn').hidden=!(navigator.canShare&&window.File&&navigator.canShare({files:[new File([''],'a.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})]}));
   $$('#segMode button').forEach(function(b){b.classList.toggle('on',b.dataset.v===S.mode)});
   $('#modeHint').textContent=isEdit()
@@ -1192,6 +1316,51 @@ function applyImport(){
   renderAll();toast('Planilha carregada.');
 }
 
+
+/* ---- alimentar banco (catálogo) ---- */
+function catFromSheets(sheets){
+  var out={};
+  sheets.forEach(function(sh){
+    if(norm(sh.name)==='layout') return;
+    var h=headerIdx(sh.rows),rows=sh.rows||[],r;
+    if(h&&(h.o.code>=0||h.o.ean>=0)&&h.o.desc>=0){
+      for(r=h.row+1;r<rows.length;r++){
+        var row=rows[r]||[],o=h.o;
+        var desc=String(row[o.desc]||'').replace(/\s+/g,' ').trim();
+        var code=o.code>=0?code5(row[o.code]):'';
+        if(!code&&o.ean>=0) code=code5(row[o.ean]);
+        if(code&&desc) out[code]=desc;
+      }
+    } else {
+      rows.forEach(function(row){
+        row=row||[];var code='',desc='';
+        row.forEach(function(v){
+          var t=String(v==null?'':v).replace(/\s+/g,' ').trim();
+          if(!code&&/^[Ee]?\d{5}$/.test(t)) code=t.replace(/\D/g,'');
+          else if(/[A-Za-zÀ-ú]{3}/.test(t)&&t.length>desc.length) desc=t;
+        });
+        if(code&&desc) out[code]=desc;
+      });
+    }
+  });
+  return out;
+}
+async function onCatFile(file){
+  try{
+    var name=(file.name||'').toLowerCase(),sheets;
+    if(/\.(csv|txt)$/.test(name)||file.type==='text/csv') sheets=[{name:'CSV',rows:parseCSV(await file.text())}];
+    else sheets=await readXlsx(new Uint8Array(await file.arrayBuffer()));
+    var d=catFromSheets(sheets),keys=Object.keys(d);
+    if(!keys.length){toast('Não achei código e descrição nesta planilha.');return}
+    var nw=0,up=0;
+    keys.forEach(function(c){if(!S.cat[c]) nw++; else if(S.cat[c]!==d[c]) up++; S.cat[c]=d[c]});
+    var fill=0;
+    S.items.forEach(function(i){if(!i.desc&&S.cat[i.code]){i.desc=S.cat[i.code];fill++}});
+    touch();renderAll();
+    toast(nw+' novos, '+up+' atualizados'+(fill?' · '+fill+' produtos do estoque receberam descrição':'')+'.');
+  }catch(e){toast(e&&e.message?e.message:'Não consegui abrir a planilha.')}
+}
+
 /* ---- ler códigos ---- */
 function applyParsed(p){
   if(cur.wall!==p.wall){cur.letter=null;cur.num=null}
@@ -1228,8 +1397,9 @@ function addProduct(ean){
   var pos=curPos();
   if(!pos){toast('Leia primeiro a letra e o número da posição.');return}
   var here=byPos.get(pos)||[];
-  if(here.some(function(i){return i.ean===ean})){toast('Este produto já está em '+pos+'.');return}
-  var others=S.items.filter(function(i){return i.ean===ean&&i.pos!==pos});
+  var c5=codeFromEan(ean);
+  if(here.some(function(i){return i.ean===ean||i.code===c5})){toast('Este produto já está em '+pos+'.');return}
+  var others=S.items.filter(function(i){return (i.ean===ean||i.code===c5)&&i.pos!==pos});
   var occ=(WALL[cur.wall]&&WALL[cur.wall].one&&here.length)?here[0]:null;
   if(others.length||occ){
     pendingEan=ean;
@@ -1287,7 +1457,10 @@ function onScanned(text){
     var d=String(text).replace(/\D/g,'');
     if(d.length>=8&&d.length<=14){
       var c=codeFromEan(d);
-      if(addFolha(c,0,'')){persist();renderFolha();toast('Item '+c+' na lista.')} else toast('Item '+c+' já está na lista.');
+      if(addFolha(c,0,'')){
+        if(fmode==='conf') S.folha[S.folha.length-1].qty=Math.max(1,Math.floor(+$('#folhaQty').value)||1);
+        persist();renderFolha();toast('Item '+c+' na lista.')
+      } else toast('Item '+c+' já está na lista.');
     } else toast('Leia o código de barras do produto.');
   }
 }
@@ -1387,9 +1560,9 @@ function renderLoja(){
   $('#storeSeg').innerHTML=DB.stores.map(function(st){
     return '<button type="button" class="'+(st.id===DB.cur?'on':'')+'" data-act="store-sel" data-v="'+esc(st.id)+'">'+esc(st.id===DB.cur?S.name:st.name)+'</button>';
   }).join('');
-  $('#storeNewBtn').hidden=!ed; if(!ed) $('#newBox').hidden=true;
-  $('#layoutCard').hidden=!ed;
-  if(!ed) return;
+  $('#storeActs').hidden=!ed; if(!ed){$('#newBox').hidden=true;layoutOpen=false}
+  $('#layoutCard').hidden=!(ed&&layoutOpen);
+  if(!ed||!layoutOpen) return;
   if(!draft) openDraft();
   $('#storeName').value=S.name;
   $('#wallEd').innerHTML=draft.map(wedHtml).join('');
@@ -1421,7 +1594,7 @@ function saveLayout(){
   applyLayout(nl); S.walls=nl; S.name=name;
   S.items=old.map(function(i){var nw=map[i.w];return mkItem(fmtPos(nw.id,i.l,i.n),i.ean,i.code,i.desc,i.ts)}).filter(Boolean);
   cur={wall:null,letter:null,num:null}; lastId=null; $('#last').hidden=true;
-  touch(); draft=null; renderAll(); renderLoja(); toast('Layout salvo.');
+  touch(); draft=null; layoutOpen=false; renderAll(); renderLoja(); toast('Layout salvo.');
 }
 function switchStore(id){
   if(id===DB.cur) return;
@@ -1432,7 +1605,7 @@ function createStore(){
   var nm=$('#newName').value.trim(); if(!nm){toast('Escreva o nome da loja.');return}
   stash();
   var st={id:newId(),name:nm,walls:cloneWalls(S.walls),items:[],changed:Date.now(),saved:Date.now(),folha:[]};
-  DB.stores.push(st); activate(st.id); persist(); draft=null;
+  DB.stores.push(st); activate(st.id); persist(); draft=null; layoutOpen=true;
   $('#newName').value='';$('#newBox').hidden=true; renderAll(); toast('Loja criada. Ajuste o layout e salve.');
 }
 function deleteStore(){
@@ -1499,13 +1672,13 @@ document.addEventListener('click',function(e){
       break;
     case 'folha-paste': {
       var list=parseFolhaText($('#folhaPaste').value),n=0;
-      list.forEach(function(x){if(addFolha(x.code,x.qty,x.desc)) n++});
+      list.forEach(function(x){if(addFolha(x.code,(fmode==='conf'&&!x.qty)?1:x.qty,x.desc)) n++});
       persist();renderFolha();
       toast(list.length?(n+' '+(n===1?'item novo':'itens novos')+' na lista.'):'Não achei códigos de 5 números no texto.');
       if(list.length) $('#folhaPaste').value='';
       break}
     case 'folha-rm': {var i=+t.closest('[data-i]').dataset.i;S.folha.splice(i,1);persist();renderFolha();break}
-    case 'folha-clear': armed(t,'Toque de novo para limpar',function(){S.folha=[];persist();renderFolha()}); break;
+    case 'folha-clear': armed(t,'Toque de novo para limpar',function(){S.folha=[];S.fdone=false;persist();renderFolha()}); break;
     case 'folha-learn': {
       var k=0;S.folha.forEach(function(f){if(f.desc&&S.cat[f.code]!==f.desc){S.cat[f.code]=f.desc;k++}});
       touch();renderFolha();toast(k+(k===1?' descrição guardada.':' descrições guardadas.'));break}
@@ -1522,6 +1695,27 @@ document.addEventListener('click',function(e){
     case 'labels': $('#pgrid').innerHTML=labelsHtml(); $('#printSheet').hidden=false; $('#printSheet').scrollTop=0; break;
     case 'print-go': try{window.print()}catch(e){toast('Não consegui abrir a impressão.')} break;
     case 'print-close': $('#printSheet').hidden=true; break;
+    case 'layout-edit': layoutOpen=!layoutOpen; draft=null; renderLoja(); if(layoutOpen) $('#layoutCard').scrollIntoView({block:'start'}); break;
+    case 'layout-close': layoutOpen=false; draft=null; renderLoja(); break;
+    case 'folha-mode': fmode=t.dataset.v; renderFolha(); break;
+    case 'conf-set': {
+      var ce=S.folha[+t.closest('[data-i]').dataset.i]; if(!ce) break;
+      if(ce.st===t.dataset.v){ce.st='';ce.dif=0}
+      else{ce.st=t.dataset.v; ce.dif=(ce.st==='ok')?0:(ce.dif||1)}
+      persist();renderFolha();break}
+    case 'conf-finish': {
+      var cc=confCounts();
+      var fin=function(){S.fdone=true;persist();renderFolha();window.scrollTo(0,0)};
+      if(cc.pend) armed(t,cc.pend+' sem conferir. Toque de novo para finalizar',fin); else fin();
+      break}
+    case 'conf-reopen': S.fdone=false; persist(); renderFolha(); break;
+    case 'conf-new': armed(t,'Toque de novo para limpar tudo',function(){S.folha=[];S.fdone=false;persist();renderFolha()}); break;
+    case 'conf-store': {
+      var se=S.folha[+t.closest('[data-i]').dataset.i]; if(!se) break;
+      pendingProd={code:se.code,desc:folhaDesc(se)}; cur={wall:null,letter:null,num:null}; go('add'); renderCur(); renderPicker(); break}
+    case 'conf-put': putPending(); break;
+    case 'conf-cancel': pendingProd=null; renderCur(); break;
+    case 'feed-db': $('#catFile').click(); break;
     case 'save-xlsx': saveXlsx(); break;
     case 'share-xlsx': shareXlsx(); break;
     case 'open-xlsx': $('#planFile').click(); break;
@@ -1537,10 +1731,15 @@ document.addEventListener('click',function(e){
 document.addEventListener('change',function(e){
   var t=e.target;
   if(t.id==='photo'){var f=t.files&&t.files[0];t.value='';if(f) onPhoto(f);return}
+  if(t.id==='catFile'){var cf=t.files&&t.files[0];t.value='';if(cf) onCatFile(cf);return}
   if(t.id==='planFile'){var g=t.files&&t.files[0];t.value='';if(g) onPlanFile(g);return}
   if(t.id==='lastDesc'){
     var it=itemById(lastId); if(!it) return;
     it.desc=t.value.trim(); learnDesc(it.code,it.desc); touch(); renderStats(); toast('Descrição salva.'); return;
+  }
+  if(t.dataset&&t.dataset.act==='conf-dif'){
+    var ci=t.closest('[data-i]'),ce2=ci?S.folha[+ci.dataset.i]:null; if(!ce2) return;
+    ce2.dif=Math.max(1,Math.floor(+t.value)||1); t.value=ce2.dif; persist(); return;
   }
   if(t.dataset&&t.dataset.act==='desc'){
     var row=t.closest('[data-id]'),it2=row?itemById(row.dataset.id):null; if(!it2) return;
@@ -1559,7 +1758,9 @@ $('#folhaIn').addEventListener('input',function(){
   var v=this.value.replace(/\D/g,'');
   if(v!==this.value) this.value=v;
   if(v.length===5){
-    var n=addFolha(v,0,'');this.value='';persist();renderFolha();
+    var n=addFolha(v,0,'');this.value='';
+    if(n&&fmode==='conf'){S.folha[S.folha.length-1].qty=Math.max(1,Math.floor(+$('#folhaQty').value)||1);$('#folhaQty').value=''}
+    persist();renderFolha();
     if(!n) toast('Item '+v+' já está na lista.');
   }
 });
